@@ -34,3 +34,31 @@ function log(msg, el = document.getElementById('log')) {
     el.innerHTML += `<div>[${time}] ${msg}</div>`;
     el.scrollTop = el.scrollHeight;
 }
+
+// WebSocket Global
+let ws;
+
+function initWS() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}`;
+
+    console.log('Connecting to WS:', wsUrl);
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+        console.log('WS Connected');
+        ws.send(JSON.stringify({ type: 'admin_handshake' }));
+        if (typeof onWsOpen === 'function') onWsOpen();
+    };
+
+    ws.onclose = () => {
+        console.log('WS Closed');
+        setTimeout(initWS, 3000);
+    };
+
+    ws.onerror = (e) => console.error('WS Error:', e);
+}
+
+// Auto-init
+initWS();
