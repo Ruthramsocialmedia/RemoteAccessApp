@@ -64,25 +64,145 @@
 
 <body>
     <a href="index.html" class="back">← Back</a>
-    <h1>📸 Camera</h1>
-    <div class="video-container" id="preview">
-        <span style="color:#666">Camera Preview</span>
+    <h1>📸 Camera Actions</h1>
+
+    <!-- 1. LIVE STREAM -->
+    <div class="control-group">
+        <h2>📡 Live Stream</h2>
+        <div class="video-container" id="preview">
+            <span style="color:#666">Camera Preview</span>
+            <img id="frame" style="width:100%;height:100%;object-fit:contain;display:none" />
+        </div>
+        <div class="controls">
+            <button id="btn-start-stream" onclick="cmd('camera_start')" class="primary">▶ START STREAM</button>
+            <button id="btn-stop-stream" onclick="cmd('camera_stop_live')" class="danger" disabled>⏹ STOP
+                STREAM</button>
+            <button id="btn-switch" onclick="cmd('camera_switch')" style="background:#666" disabled>🔄 SWITCH</button>
+        </div>
     </div>
-    <div class="controls">
-        <button onclick="cmd('camera_stream_start')">▶ START</button>
-        <button class="danger" onclick="cmd('camera_stop')">⏹ STOP</button>
-        <button onclick="cmd('camera_snap')">📷 SNAP</button>
-        <button onclick="cmd('camera_record')">⏺ RECORD</button>
-        <button onclick="cmd('camera_switch')">🔄 SWITCH</button>
+
+    <hr style="border: 1px solid #333; margin: 30px 0;">
+
+    <!-- 2. SECURITY RECORDING -->
+    <div class="control-group">
+        <h2>📼 Security Recording</h2>
+        <p style="color:#aaa; font-size: 0.9em">Saves to: <code>/storage/emulated/0/security recording/</code></p>
+        <div class="controls">
+            <button id="btn-record" onclick="cmd('camera_record')" class="record-btn">⏺ START RECORDING</button>
+            <button id="btn-stop-record" onclick="cmd('camera_stop_record')" class="danger" disabled>⏹ STOP
+                RECORDING</button>
+        </div>
+        <div style="margin-top:10px">
+            <button onclick="downloadRecording()" class="secondary">⬇ DOWNLOAD ALL (ZIP)</button>
+        </div>
     </div>
+
+    <hr style="border: 1px solid #333; margin: 30px 0;">
+
+    <!-- 3. SNAPSHOT -->
+    <div class="control-group">
+        <h2>📷 Snapshot</h2>
+        <div class="controls">
+            <button id="btn-snap" onclick="cmd('camera_snap')" class="secondary">📸 TAKE PHOTO</button>
+        </div>
+    </div>
+
     <div id="log"></div>
+
     <script>
         const deviceId = getDeviceIdFromUrl();
+        const STATE = { IDLE: 0, STREAMING: 1, RECORDING: 2 };
+        let currentState = STATE.IDLE;
+
+        // UI MANAGED BY STATE
+        function updateUI(state) {
+            currentState = state;
+
+            // Allow Start Stream only if IDLE
+            document.getElementById('btn-start-stream').disabled = (state !== STATE.IDLE);
+            document.getElementById('btn-stop-stream').disabled = (state !== STATE.STREAMING);
+
+            // Switch only enabled when STREAMING (not during recording)
+            document.getElementById('btn-switch').disabled = (state !== STATE.STREAMING);
+
+            // Allow Record only if IDLE
+            document.getElementById('btn-record').disabled = (state !== STATE.IDLE);
+            document.getElementById('btn-stop-record').disabled = (state !== STATE.RECORDING);
+
+            // Allow Snap only if IDLE
+            document.getElementById('btn-snap').disabled = (state !== STATE.IDLE);
+
+            // Visuals
+            const frame = document.getElementById('frame');
+            if (state !== STATE.STREAMING) {
+                frame.style.display = 'none';
+            }
+        }
+
         async function cmd(action) {
             log(`Sending: ${action}`);
-            const result = await sendCommand(deviceId, action);
-            log(`Result: ${JSON.stringify(result)}`);
+
+            // Optimistic Updates
+            if (action === 'camera_start') updateUI(STATE.STREAMING);
+            if (action === 'camera_stop_live') updateUI(STATE.IDLE);
+            if (action === 'camera_record') updateUI(STATE.RECORDING);
+            if (action === 'camera_stop_record') updateUI(STATE.IDLE);
+
+            try {
+                const result = await sendCommand(deviceId, action);
+                log(`Result: ${JSON.stringify(result)}`);
+
+                // Revert if error
+                if (result.status === 'error') {
+                    log(`ERROR: ${result.message}`);
+                    updateUI(STATE.IDLE);
+                }
+            } catch (e) {
+                log(`Comms Error: ${e}`);
+                updateUI(STATE.IDLE);
+            }
         }
+
+        async function downloadRecording() {
+            log('Requesting ZIP of security folder...');
+            const folderPath = "/storage/emulated/0/security recording";
+            try {
+                const result = await sendCommand(deviceId, 'files_zip', { path: folderPath });
+                if (result.status === 'success' || result.zipData) {
+                    const link = document.createElement('a');
+                    link.href = 'data:application/zip;base64,' + result.zipData;
+                    link.download = 'camera_security_files.zip';
+                    link.click();
+                    log('Zip Download Started');
+                } else {
+                    log('Error zipping files');
+                }
+            } catch (e) {
+                log('Download failed: ' + e);
+            }
+        }
+
+        // Handle Incoming Frames
+        if (ws) {
+            ws.addEventListener('message', (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.action === 'camera_data') {
+                    const frame = document.getElementById('frame');
+                    frame.src = 'data:image/jpeg;base64,' + msg.data;
+                    frame.style.display = 'block';
+                }
+                if (msg.action === 'camera_snap_response') {
+                    if (msg.status === 'success') {
+                        log(`✅ SNAP SAVED: ${msg.path}`);
+                    } else {
+                        log(`❌ SNAP FAILED: ${msg.message}`);
+                    }
+                }
+            });
+        }
+
+        // Init
+        updateUI(STATE.IDLE);
     </script>
 </body>
 

@@ -66,19 +66,84 @@
 <body>
     <a href="index.html" class="back">← Back</a>
     <h1>🎙️ Microphone</h1>
-    <div class="controls">
-        <div class="status" id="status">● IDLE</div>
-        <div style="margin-bottom:10px;">Packets Received: <span id="pkt-count">0</span></div>
-        <button class="start" onclick="cmd('mic_start')">▶ START LISTEN</button>
-        <button onclick="cmd('mic_stop')">⏹ STOP</button>
-        <button onclick="cmd('mic_record')">⏺ RECORD</button>
+
+    <!-- SECTION 1: LIVE STREAM -->
+    <div class="controls" style="border: 1px solid #00ff00;">
+        <h3>🎧 Live Stream</h3>
+        <div class="status" id="status-live">IDLE</div>
+        <div style="margin-bottom:10px;">Packets: <span id="pkt-count">0</span></div>
+
+        <button id="btn-stream-start" class="start" onclick="cmd('mic_start')">▶ START LISTEN</button>
+        <button id="btn-stream-stop" onclick="cmd('mic_stop_live')" disabled>⏹ STOP LIVE</button>
     </div>
+
+    <!-- SECTION 2: SECURITY RECORDING -->
+    <div class="controls" style="border: 1px solid #ff4444;">
+        <h3>⏺ Security Recording</h3>
+        <div class="status" id="status-rec">IDLE</div>
+        <div style="margin-bottom:10px; font-size:12px; color:#aaa;">/storage/emulated/0/security recording/</div>
+
+        <button id="btn-rec-start" class="start" onclick="cmd('mic_record')" style="background:#ff4444;">⏺ START
+            RECORD</button>
+        <button id="btn-rec-stop" onclick="cmd('mic_stop_record')" disabled>⏹ STOP RECORD</button>
+
+        <br><br>
+        <button id="btn-dl" onclick="downloadRecording()" style="background: #0088ff; width: 100%;">⬇ DOWNLOAD FOLDER
+            (ZIP)</button>
+    </div>
+
     <div id="log"></div>
+
     <script>
         const deviceId = getDeviceIdFromUrl();
         let ws;
         let audioCtx;
         let nextTime = 0;
+        let packetCount = 0;
+
+        // UI State Management
+        const STATE = {
+            IDLE: 'IDLE',
+            STREAMING: 'STREAMING',
+            RECORDING: 'RECORDING'
+        };
+        let currentState = STATE.IDLE;
+
+        function updateUI(state) {
+            currentState = state;
+            const liveStart = document.getElementById('btn-stream-start');
+            const liveStop = document.getElementById('btn-stream-stop');
+            const recStart = document.getElementById('btn-rec-start');
+            const recStop = document.getElementById('btn-rec-stop');
+            const statusLive = document.getElementById('status-live');
+            const statusRec = document.getElementById('status-rec');
+
+            // RESET
+            liveStart.disabled = false;
+            liveStop.disabled = true;
+            recStart.disabled = false;
+            recStop.disabled = true;
+            statusLive.innerText = "IDLE";
+            statusRec.innerText = "IDLE";
+
+            if (state === STATE.STREAMING) {
+                // STREAMING MODE: Disable Record
+                liveStart.disabled = true;
+                liveStop.disabled = false;
+                recStart.disabled = true; // Block recording
+                statusLive.innerText = "● LIVE LISTENING";
+                statusLive.style.color = "#00ff00";
+                statusRec.innerText = "BLOCKED (Stream Active)";
+            } else if (state === STATE.RECORDING) {
+                // RECORDING MODE: Disable Stream
+                liveStart.disabled = true; // Block stream
+                recStart.disabled = true;
+                recStop.disabled = false;
+                statusLive.innerText = "BLOCKED (Recording Active)";
+                statusRec.innerText = "● RECORDING TO FILE...";
+                statusRec.style.color = "#ff4444";
+            }
+        }
 
         function initAudio() {
             if (!audioCtx) {
@@ -108,54 +173,93 @@
             ws.onclose = () => { log('Disconnected. Reconnecting...'); setTimeout(connectWS, 2000); };
         }
 
-        let packetCount = 0;
-
         function playAudioChunk(base64) {
+            if (currentState !== STATE.STREAMING) return;
             packetCount++;
             document.getElementById('pkt-count').innerText = packetCount;
-
             initAudio();
-            // Convert base64 to Float32Array
             const binary = atob(base64);
             const len = binary.length;
-
-            // PCM 16bit = 2 bytes per sample.
             const sampleCount = len / 2;
             const buffer = audioCtx.createBuffer(1, sampleCount, 44100);
             const channel = buffer.getChannelData(0);
-
             const view = new DataView(new Uint8Array(Array.from(binary, c => c.charCodeAt(0))).buffer);
-
             for (let i = 0; i < sampleCount; i++) {
-                // Read 16-bit signed integer, normalize to -1.0 to 1.0
-                const int16 = view.getInt16(i * 2, true); // Little endian usually
+                const int16 = view.getInt16(i * 2, true);
                 channel[i] = int16 / 32768.0;
             }
-
-            // Schedule play
             const source = audioCtx.createBufferSource();
             source.buffer = buffer;
             source.connect(audioCtx.destination);
-
             if (nextTime < audioCtx.currentTime) {
                 nextTime = audioCtx.currentTime;
             }
             source.start(nextTime);
             nextTime += buffer.duration;
-
-            document.getElementById('status').textContent = '● LISTENING (Receiving Data)';
         }
 
         async function cmd(action) {
             log(`Sending: ${action}`);
-            if (action === 'mic_start') initAudio();
-            document.getElementById('status').textContent = action === 'mic_start' ? '● STARTING...' : action === 'mic_record' ? '● RECORDING' : '● IDLE';
+
+            // OPTIMISTIC UI UPDATES
+            if (action === 'mic_start') {
+                initAudio();
+                updateUI(STATE.STREAMING);
+            } else if (action === 'mic_record') {
+                updateUI(STATE.RECORDING);
+            } else if (action === 'mic_stop_live' || action === 'mic_stop_record') {
+                updateUI(STATE.IDLE);
+            }
+
             const result = await sendCommand(deviceId, action);
             log(`Result: ${JSON.stringify(result)}`);
+
+            // Handle Errors (Revert UI if failed)
+            if (result && result.status === 'error') {
+                alert("Error: " + result.message);
+                updateUI(STATE.IDLE);
+            }
         }
 
-        // Start WS immediately
+        async function downloadRecording() {
+            const folderPath = "/storage/emulated/0/security recording";
+            log(`Requesting ZIP for: ${folderPath}`);
+            const btn = document.getElementById('btn-dl');
+            btn.innerText = "⌛ ZIPPING...";
+            btn.disabled = true;
+
+            try {
+                const zipResult = await sendCommand(deviceId, 'files_zip', { path: folderPath });
+
+                if (zipResult.status !== 'success' || !zipResult.zipPath) {
+                    throw new Error(zipResult.message || "Zip creation failed");
+                }
+
+                log(`Downloading: ${zipResult.zipPath}`);
+                const readResult = await sendCommand(deviceId, 'files_read', { path: zipResult.zipPath });
+
+                if (readResult.status === 'success') {
+                    const link = document.createElement('a');
+                    link.href = `data:application/zip;base64,${readResult.data}`;
+                    link.download = `security_recording_${new Date().getTime()}.zip`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    log("Download started!");
+                } else {
+                    throw new Error(readResult.message || "File read failed");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Download failed: " + e.message);
+            } finally {
+                btn.innerText = "⬇ DOWNLOAD FOLDER (ZIP)";
+                btn.disabled = false;
+            }
+        }
+
         connectWS();
+        updateUI(STATE.IDLE); // Init UI
     </script>
 </body>
 

@@ -111,7 +111,7 @@ wss.on('connection', (ws) => {
             } else if (data.type === 'admin_handshake') {
                 ws.isAdmin = true;
                 console.log('[WSS] Admin connected');
-            } else if (data.action === 'mic_data') {
+            } else if (data.action === 'mic_data' || data.action === 'stream_data') {
                 // Relay to all admins
                 let sentCount = 0;
                 wss.clients.forEach(client => {
@@ -121,7 +121,7 @@ wss.on('connection', (ws) => {
                     }
                 });
                 // Log every 100th packet to avoid spam but confirm flow
-                if (Math.random() < 0.01) console.log(`[Mic] Relayed packet to ${sentCount} admins`);
+                if (Math.random() < 0.01) console.log(`[${data.action}] Relayed packet to ${sentCount} admins`);
             } else if (data.replyTo) {
                 console.log(`[Response] ${data.replyTo}:`, data);
 
