@@ -87,6 +87,9 @@
 
     <script>
         const deviceId = getDeviceIdFromUrl();
+        log(`Current Device ID: ${deviceId}`);
+        if (!deviceId) alert("Error: No Device ID in URL!");
+
         const STATE = { IDLE: 0, STREAMING: 1, RECORDING: 2 };
         let currentState = STATE.IDLE;
 
@@ -149,8 +152,13 @@
             try {
                 const result = await sendCommand(deviceId, action);
                 log(`Result: ${JSON.stringify(result)}`);
-                if (result.status === 'error') {
-                    log(`ERROR: ${result.message}`);
+
+                if (result.error) {
+                    log(`❌ SERVER ERROR: ${result.error}`);
+                    alert(`Server Error: ${result.error}`);
+                    updateUI(STATE.IDLE);
+                } else if (result.status === 'error') {
+                    log(`❌ EXEC ERROR: ${result.message}`);
                     updateUI(STATE.IDLE);
                 }
             } catch (e) {

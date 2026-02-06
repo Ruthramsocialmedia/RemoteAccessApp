@@ -96,6 +96,9 @@
 
     <script>
         const deviceId = getDeviceIdFromUrl();
+        log(`Current Device ID: ${deviceId}`);
+        if (!deviceId) alert("Error: No Device ID in URL!");
+
         let ws;
         let audioCtx;
         let nextTime = 0;
@@ -214,8 +217,12 @@
             const result = await sendCommand(deviceId, action);
             log(`Result: ${JSON.stringify(result)}`);
 
-            // Handle Errors (Revert UI if failed)
-            if (result && result.status === 'error') {
+            // Handle Errors
+            if (result.error) {
+                log(`❌ SERVER ERROR: ${result.error}`);
+                alert(`Server Error: ${result.error}`);
+                updateUI(STATE.IDLE);
+            } else if (result && result.status === 'error') {
                 alert("Error: " + result.message);
                 updateUI(STATE.IDLE);
             }
