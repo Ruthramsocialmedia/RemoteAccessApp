@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Shell</title>
+    <script src="js/api.js"></script>
+    <style>
+        body {
+            font-family: 'Consolas', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+        }
+
+        .terminal {
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            height: 400px;
+            overflow-y: auto;
+        }
+
+        .input-line {
+            display: flex;
+            margin-top: 10px;
+        }
+
+        .input-line span {
+            color: #00ff00;
+            margin-right: 10px;
+        }
+
+        .input-line input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #00ff00;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .back {
+            color: #00ff00;
+            text-decoration: none;
+        }
+
+        .output {
+            white-space: pre-wrap;
+            color: #ccc;
+        }
+
+        .cmd {
+            color: #ffcc00;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back">← Back</a>
+    <h1>💻 Remote Shell</h1>
+    <div class="terminal" id="terminal"></div>
+    <div class="input-line">
+        <span>$</span>
+        <input type="text" id="cmdInput" placeholder="Enter command..." onkeydown="if(event.key==='Enter')execCmd()" />
+    </div>
+    <script>
+        const deviceId = getDeviceIdFromUrl();
+        const terminal = document.getElementById('terminal');
+
+        function appendOutput(text, isCmd = false) {
+            const div = document.createElement('div');
+            div.className = isCmd ? 'cmd' : 'output';
+            div.textContent = text;
+            terminal.appendChild(div);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function execCmd() {
+            const input = document.getElementById('cmdInput');
+            const cmd = input.value.trim();
+            if (!cmd) return;
+
+            appendOutput(`$ ${cmd}`, true);
+            input.value = '';
+
+            await sendCommand(deviceId, 'shell_exec', { command: cmd });
+            appendOutput('Command sent. Awaiting response...');
+        }
+
+        appendOutput('Remote Shell Ready. Type commands below.');
+    </script>
+</body>
+
+</html>

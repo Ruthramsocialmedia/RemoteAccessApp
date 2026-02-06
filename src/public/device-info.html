@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Info</title>
+    <script src="js/api.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .card {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .card h2 {
+            margin-top: 0;
+            color: #00ff00;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #444;
+        }
+
+        .back {
+            color: #00ff00;
+            text-decoration: none;
+        }
+
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back">← Back to Devices</a>
+    <h1>Device Info</h1>
+    <div id="info" class="card">Loading...</div>
+
+    <div id="log" style="background:#000; padding:10px; height:100px; overflow-y:auto; font-family:monospace;"></div>
+    <script>
+        const deviceId = getDeviceIdFromUrl();
+        async function loadInfo() {
+            const res = await fetch(`/api/devices/${deviceId}`);
+            const data = await res.json();
+            document.getElementById('info').innerHTML = `
+                <h2>${data.model || 'Unknown'}</h2>
+                <div class="info-row"><span>Device ID</span><span>${deviceId}</span></div>
+                <div class="info-row"><span>Android</span><span>${data.androidVersion || 'N/A'}</span></div>
+                <div class="info-row"><span>Storage</span><span>${data.storageInfo || 'Calculating...'}</span></div>
+                <div class="info-row"><span>Network</span><span>${data.networkType || 'Unknown'}</span></div>
+                <div class="info-row"><span>Battery</span><span>${data.batteryLevel || 'N/A'}% (${data.chargingStatus || 'Unknown'})</span></div>
+            `;
+        }
+        async function cmd(action) {
+            log(`Sending: ${action}`);
+            const result = await sendCommand(deviceId, action);
+            log(`Result: ${JSON.stringify(result)}`);
+        }
+        loadInfo();
+    </script>
+</body>
+
+</html>

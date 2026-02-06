@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contacts</title>
+    <script src="js/api.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .search {
+            width: 100%;
+            padding: 12px;
+            background: #333;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .contact-list {
+            background: #333;
+            border-radius: 8px;
+        }
+
+        .contact {
+            padding: 15px;
+            border-bottom: 1px solid #444;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .contact .name {
+            font-weight: bold;
+        }
+
+        .contact .phone {
+            color: #888;
+        }
+
+        .contact button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .refresh {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .back {
+            color: #00ff00;
+            text-decoration: none;
+        }
+
+        #log {
+            background: #000;
+            padding: 10px;
+            height: 100px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back">← Back</a>
+    <h1>👥 Contacts</h1>
+    <button class="refresh" onclick="refresh()">🔄 Refresh</button>
+    <input type="text" class="search" placeholder="Search contacts..." oninput="filter(this.value)" />
+    <div id="contacts" class="contact-list">Click refresh to load...</div>
+    <div id="log"></div>
+    <script>
+        const deviceId = getDeviceIdFromUrl();
+        async function refresh() {
+            log('Fetching contacts...');
+            await sendCommand(deviceId, 'contacts_list');
+        }
+        function filter(term) {
+            // In real impl, filter displayed contacts
+        }
+        async function dial(number) {
+            log(`Dialing: ${number}`);
+            await sendCommand(deviceId, 'dial_call', { number });
+        }
+    </script>
+</body>
+
+</html>

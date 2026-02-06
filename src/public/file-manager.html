@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager</title>
+    <script src="js/api.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .toolbar {
+            background: #333;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .toolbar input {
+            flex: 1;
+            padding: 8px;
+            background: #222;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+        }
+
+        .toolbar button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .file-list {
+            background: #333;
+            border-radius: 8px;
+        }
+
+        .file-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #444;
+            display: flex;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+
+        .file-item:hover {
+            background: #444;
+        }
+
+        .folder {
+            color: #ffcc00;
+        }
+
+        .file {
+            color: #00ff00;
+        }
+
+        .back {
+            color: #00ff00;
+            text-decoration: none;
+        }
+
+        #log {
+            background: #000;
+            padding: 10px;
+            height: 100px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back">← Back</a>
+    <h1>📂 File Manager</h1>
+    <div class="toolbar">
+        <input type="text" id="path" value="/storage/emulated/0" />
+        <button onclick="listFiles()">GO</button>
+        <button onclick="goUp()">↑ UP</button>
+        <button onclick="createFolder()">+ NEW FOLDER</button>
+        <button onclick="downloadCurrentFolder()">📦 ZIP & DL ALL</button>
+        <button onclick="document.getElementById('uploadInput').click()">⬆ UPLOAD</button>
+        <input type="file" id="uploadInput" style="display:none" onchange="uploadFile(this)">
+    </div>
+    <div id="files" class="file-list">Loading...</div>
+    <div id="log"></div>
+    <script>
+        const deviceId = getDeviceIdFromUrl();
+        let currentPath = '/storage/emulated/0';
+        let refreshInterval;
+
+        async function refreshFileList() {
+            try {
+                // Poll the server for the latest file context
+                const res = await fetch(`/api/devices/${deviceId}/files`);
+                const data = await res.json();
+
+                if (data.status === 'success' && data.files) {
+                    renderFiles(data.files, data.path);
+                    currentPath = data.path;
+                    document.getElementById('path').value = data.path;
+                } else if (data.status === 'error') {
+                    log(`Error: ${data.message}`);
+                }
+            } catch (e) {
+                console.error('Failed to refresh files', e);
+            }
+        }
+
+        function renderFiles(files, path) {
+            const container = document.getElementById('files');
+            container.innerHTML = '';
+
+            if (!files || files.length === 0) {
+                container.innerHTML = '<div style="padding:20px;">No files found.</div>';
+                return;
+            }
+
+            // sort folders first
+            files.sort((a, b) => {
+                if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name);
+                return a.isDirectory ? -1 : 1;
+            });
+
+            files.forEach(file => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                // Pass file.path if exists (for roots), otherwise null (to use append logic)
+                const clickPath = file.path ? `'${file.path}'` : 'null';
+
+                div.innerHTML = `
+                    <span class="${file.isDirectory ? 'folder' : 'file'}" onclick="navigate('${file.name}', ${file.isDirectory}, ${clickPath})">
+                        ${file.isDirectory ? '📁' : '📄'} ${file.name}
+                    </span>
+                    <span>
+                        <span style="color:#aaa; margin-right:15px;">${formatBytes(file.size || 0)}</span>
+                        ${!file.isDirectory ? `<button style="padding:2px 8px; font-size:12px; background:#00ccff; color:black; margin-right:5px;" onclick="downloadFile('${path}/${file.name}')">⬇</button>` : `<button style="padding:2px 8px; font-size:12px; background:#00ccff; color:black; margin-right:5px;" onclick="downloadZip('${path}/${file.name}')">⬇📦</button>`}
+                        <button style="padding:2px 8px; font-size:12px; background:#ffcc00; color:black; margin-right:5px;" onclick="renameFile('${path}/${file.name}', '${file.name}')">✎</button>
+                        <button style="padding:2px 8px; font-size:12px; background:#ff4444;" onclick="deleteFile('${path}/${file.name}')">✖</button>
+                    </span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function navigate(name, isDir, absolutePath) {
+            if (isDir) {
+                let newPath;
+                if (absolutePath) {
+                    newPath = absolutePath;
+                } else {
+                    newPath = (currentPath === '/' ? '' : currentPath) + '/' + name;
+                }
+                document.getElementById('path').value = newPath;
+                listFiles();
+            }
+        }
+
+        async function renameFile(fullPath, currentName) {
+            const newName = prompt("Rename to:", currentName);
+            if (newName && newName !== currentName) {
+                log(`Renaming: ${currentName} -> ${newName}`);
+                await sendCommand(deviceId, 'files_rename', { path: fullPath, newName });
+                setTimeout(listFiles, 1000);
+            }
+        }
+
+        async function downloadFile(fullPath) {
+            log(`Requesting Download: ${fullPath}`);
+            // Clear any previous download context for this device on server to avoid stale data?
+            // Ideally server handles this, but we just trigger read.
+            await sendCommand(deviceId, 'files_read', { path: fullPath });
+            log(`Waiting for file transfer...`);
+
+            // Poll for download readiness
+            let attempts = 0;
+            const checkDownload = setInterval(async () => {
+                attempts++;
+                if (attempts > 30) {
+                    clearInterval(checkDownload);
+                    log("Download timeout (30s). File might be too large or app backgrounded.");
+                    return;
+                }
+
+                try {
+                    // Check if file is ready using the existing download endpoint ? 
+                    // No, the download endpoint returns the FILE stream.
+                    // We need a status endpoint. 
+                    // Reuse /api/devices/:id/files/download but maybe we can just try to fetch HEAD?
+                    // Or better, let's add a proper status check.
+                    // Since I can't easily add a new endpoint without restarting server (which I can do, but let's try to be clever),
+                    // I will use fetch with HEAD method or just try to download it.
+                    // But wait, my server code clears `downloadContext`? No, it overwrites it.
+
+                    // Actually, I can check if the server has the context by adding a status endpoint.
+                    // I already added /api/devices/:id/zip. 
+                    // Let's assume for now I will just use the download endpoint but via fetch to check status first?
+                    // No, fetching a large file into JS memory is bad.
+
+                    // Let's just trust the server has it if we poll /api/devices/:id/files/download via a phantom request?
+                    // No.
+
+                    // Let's modify the server to return status on a separate endpoint OR 
+                    // Just wait nicely.
+
+                    // BETTER FIX: I already added /api/devices/:id/files/download logic in index.js:
+                    // app.get('/api/devices/:id/files/download', ... 
+                    // if (client.downloadContext ...) send file else 404.
+
+                    // So I can poll this endpoint with a HEAD request!
+                    const res = await fetch(`/api/devices/${deviceId}/files/download`, { method: 'HEAD' });
+                    if (res.ok) {
+                        clearInterval(checkDownload);
+                        log("File Ready! Downloading...");
+                        window.location.href = `/api/devices/${deviceId}/files/download`;
+                    }
+                } catch (e) {
+                    // Ignore network errors during polling
+                }
+            }, 1000);
+        }
+
+        async function listFiles() {
+            const path = document.getElementById('path').value;
+            log(`Requesting List: ${path}`);
+            await sendCommand(deviceId, 'files_list', { path });
+            // Start polling for results
+            if (!refreshInterval) {
+                refreshInterval = setInterval(refreshFileList, 1000);
+            }
+        }
+
+        async function createFolder() {
+            const name = prompt("Enter folder name:");
+            if (name) {
+                const newPath = (currentPath + '/' + name).replace('//', '/');
+                log(`Creating Folder: ${newPath}`);
+                await sendCommand(deviceId, 'files_create_dir', { path: newPath });
+                setTimeout(listFiles, 1000);
+            }
+        }
+
+        function uploadFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function (e) {
+                const base64 = e.target.result.split(',')[1];
+                const targetPath = (currentPath + '/' + file.name).replace('//', '/');
+
+                log(`Uploading: ${file.name} (${formatBytes(file.size)})`);
+                await sendCommand(deviceId, 'files_write', {
+                    path: targetPath,
+                    data: base64
+                });
+
+                setTimeout(listFiles, 2000);
+                input.value = '';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function deleteFile(fullPath) {
+            if (confirm(`Delete ${fullPath}?`)) {
+                log(`Deleting: ${fullPath}`);
+                await sendCommand(deviceId, 'files_delete', { path: fullPath });
+                setTimeout(listFiles, 1000);
+            }
+        }
+
+        function goUp() {
+            const parts = currentPath.split('/').filter(Boolean);
+            parts.pop();
+            const parentPath = '/' + parts.join('/');
+
+            // If parent path is empty, we went too far, go to root
+            if (parentPath === '/') {
+                listRoots();
+            } else {
+                document.getElementById('path').value = parentPath;
+                listFiles();
+            }
+        }
+
+        async function listRoots() {
+            document.getElementById('path').value = "/";
+            log("Requesting Storage Roots...");
+            await sendCommand(deviceId, 'files_list', { path: "/" });
+            if (!refreshInterval) refreshInterval = setInterval(refreshFileList, 1000);
+        }
+
+        async function downloadZip(fullPath) {
+            log(`Zipping Folder: ${fullPath}... please wait`);
+
+            // 1. Trigger Zip on Device
+            await sendCommand(deviceId, 'files_zip', { path: fullPath });
+
+            // 2. Poll for Completion (max 60s for large folders)
+            let attempts = 0;
+            const pollZip = setInterval(async () => {
+                attempts++;
+                if (attempts > 30) {
+                    clearInterval(pollZip);
+                    log("Zip Request Timeout. Try listing files again to check.");
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`/api/devices/${deviceId}/zip`);
+                    const data = await res.json();
+
+                    if (data.status === 'success' && data.zipPath) {
+                        clearInterval(pollZip);
+                        log("Zip Ready! Downloading...");
+                        // 3. Trigger Download of the generated zip path (e.g., cache:/xyz.zip)
+                        downloadFile(data.zipPath);
+                    } else if (data.status === 'error') {
+                        clearInterval(pollZip);
+                        log(`Zip Failed: ${data.message}`);
+                    }
+                } catch (e) { console.error(e); }
+            }, 2000);
+        }
+
+        async function downloadCurrentFolder() {
+            await downloadZip(currentPath);
+        }
+
+
+
+        // Initial load
+        listFiles();
+    </script>
+</body>
+
+</html>

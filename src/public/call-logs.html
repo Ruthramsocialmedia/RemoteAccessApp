@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Logs</title>
+    <script src="js/api.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #444;
+        }
+
+        th {
+            background: #222;
+        }
+
+        .incoming {
+            color: #00ff00;
+        }
+
+        .outgoing {
+            color: #00aaff;
+        }
+
+        .missed {
+            color: #ff4444;
+        }
+
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .back {
+            color: #00ff00;
+            text-decoration: none;
+        }
+
+        #log {
+            background: #000;
+            padding: 10px;
+            height: 100px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back">← Back</a>
+    <h1>📞 Call Logs</h1>
+    <button onclick="refresh()">🔄 Refresh</button>
+    <table>
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Number</th>
+                <th>Duration</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody id="logs">
+            <tr>
+                <td colspan="4">Click refresh to load...</td>
+            </tr>
+        </tbody>
+    </table>
+    <div id="log"></div>
+    <script>
+        const deviceId = getDeviceIdFromUrl();
+        async function refresh() {
+            log('Fetching call logs...');
+            await sendCommand(deviceId, 'call_logs');
+        }
+    </script>
+</body>
+
+</html>
