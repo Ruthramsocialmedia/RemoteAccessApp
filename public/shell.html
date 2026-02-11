@@ -5,213 +5,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shell Terminal - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a1a;
             height: 100vh;
             overflow: hidden;
             display: flex;
-            color: #c9d1d9;
+            padding: 0;
         }
 
-        /* Sidebar Styles */
-        .sidebar {
-            width: 260px;
-            background: #0d1117;
-            border-right: 1px solid #30363d;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            overflow-y: auto;
-        }
-
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid #30363d;
-            background: #161b22;
-        }
-
-        .sidebar-header h2 {
-            font-size: 1.2em;
-            color: #58a6ff;
-        }
-
-        .category {
-            padding: 15px;
-            border-bottom: 1px solid #21262d;
-        }
-
-        .category-title {
-            font-size: 0.85em;
-            text-transform: uppercase;
-            color: #8b949e;
-            margin-bottom: 10px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        .cmd-btn {
-            display: block;
-            width: 100%;
-            text-align: left;
-            padding: 8px 12px;
-            background: transparent;
-            border: 1px solid #30363d;
-            color: #c9d1d9;
-            border-radius: 6px;
-            margin-bottom: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            transition: all 0.2s;
-        }
-
-        .cmd-btn:hover {
-            background: #21262d;
-            border-color: #8b949e;
-        }
-
-        .cmd-btn.primary {
-            border-color: #238636;
-            color: #3fb950;
-        }
-
-        .cmd-btn.primary:hover {
-            background: #1a2e23;
-        }
-
-        /* Main Content Styles */
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: #1a1a1a;
-            height: 100%;
+        body::before {
+            display: none;
         }
 
         header {
-            padding: 15px 20px;
-            background: #161b22;
-            border-bottom: 1px solid #30363d;
+            padding: 12px 16px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 0;
+            border-radius: 0;
         }
 
-        h1 {
-            font-size: 1.2em;
-            font-weight: 500;
+        header::before {
+            display: none;
         }
 
-        .terminal-container {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            background: #0d1117;
-            margin: 0;
-            font-family: 'Courier New', monospace;
-        }
-
-        .output-line {
-            line-height: 1.5;
-            margin-bottom: 4px;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-
-        .error-line {
-            color: #ff7b72;
-        }
-
-        .command-line {
-            color: #79c0ff;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-
-        .info-line {
-            color: #8b949e;
-            font-style: italic;
-        }
-
-        .input-area {
-            padding: 15px 20px;
-            background: #161b22;
-            border-top: 1px solid #30363d;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .prompt {
-            color: #3fb950;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-        }
-
-        #command-input {
-            flex: 1;
-            background: #0d1117;
-            border: 1px solid #30363d;
-            color: #c9d1d9;
-            padding: 10px;
-            border-radius: 6px;
-            font-family: 'Courier New', monospace;
-            font-size: 1em;
-            outline: none;
-        }
-
-        #command-input:focus {
-            border-color: #58a6ff;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border-radius: 6px;
-            border: 1px solid rgba(27, 31, 35, 0.15);
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        .btn-primary {
-            background: #238636;
-            color: white;
-            border-color: rgba(27, 31, 35, 0.15);
-        }
-
-        .btn-primary:hover {
-            background: #2ea043;
-        }
-
-        .btn-secondary {
-            background: #21262d;
-            color: #c9d1d9;
-            border: 1px solid #30363d;
-        }
-
-        .btn-secondary:hover {
-            background: #30363d;
-            boarder-color: #8b949e;
-        }
-
-        .back-link {
-            text-decoration: none;
-            color: #c9d1d9;
-            font-size: 0.9em;
-            padding: 5px 10px;
-            border-radius: 4px;
-            background: #21262d;
-        }
-
-        .back-link:hover {
-            background: #30363d;
+        header h1 {
+            font-size: 1rem;
+            letter-spacing: 1px;
         }
     </style>
 </head>
@@ -227,54 +51,58 @@
         <!-- Category: Accessibility -->
         <div class="category">
             <div class="category-title">Accessibility (No Root)</div>
-            <button class="cmd-btn primary" onclick="populate('acc click &quot;Allow&quot;')">✅ Accept
+            <button class="cmd-btn primary" onclick="populate('acc click &quot;Allow&quot;')">Accept
                 Permission</button>
-            <button class="cmd-btn primary" onclick="populate('acc click &quot;While using the app&quot;')">📍 While
+            <button class="cmd-btn primary" onclick="populate('acc click &quot;While using the app&quot;')">While
                 Using App</button>
-            <button class="cmd-btn primary" onclick="populate('acc click &quot;Start now&quot;')">🎥 Start
+            <button class="cmd-btn primary" onclick="populate('acc click &quot;Start now&quot;')">Start
                 Casting</button>
-            <button class="cmd-btn" onclick="populate('acc click &quot;TEXT_HERE&quot;')">👆 Custom Click...</button>
+            <button class="cmd-btn" onclick="populate('acc click &quot;TEXT_HERE&quot;')">Custom Click...</button>
         </div>
 
         <!-- Category: Files -->
         <div class="category">
             <div class="category-title">File Operations</div>
-            <button class="cmd-btn" onclick="run('ls -la /sdcard')">📂 List /sdcard</button>
-            <button class="cmd-btn" onclick="run('pwd')">📍 Current Dir</button>
-            <button class="cmd-btn" onclick="populate('cat /sdcard/')">📄 Read File...</button>
-            <button class="cmd-btn" onclick="populate('mkdir /sdcard/')">📁 Make Dir...</button>
+            <button class="cmd-btn" onclick="run('ls -la /sdcard')">List /sdcard</button>
+            <button class="cmd-btn" onclick="run('pwd')">Current Dir</button>
+            <button class="cmd-btn" onclick="populate('cat /sdcard/')">Read File...</button>
+            <button class="cmd-btn" onclick="populate('mkdir /sdcard/')">Make Dir...</button>
         </div>
 
         <!-- Category: System -->
         <div class="category">
             <div class="category-title">System Diagnostics</div>
-            <button class="cmd-btn" onclick="run('getprop ro.product.model && getprop ro.build.version.release')">📱
+            <button class="cmd-btn" onclick="run('getprop ro.product.model && getprop ro.build.version.release')">
                 Device Info</button>
-            <button class="cmd-btn" onclick="run('df -h')">💾 Disk Usage</button>
-            <button class="cmd-btn" onclick="run('ps -A')">📊 Process List</button>
-            <button class="cmd-btn" onclick="run('top -n 1')">⚡ CPU Usage</button>
+            <button class="cmd-btn" onclick="run('df -h')">Disk Usage</button>
+            <button class="cmd-btn" onclick="run('ps -A')">Process List</button>
+            <button class="cmd-btn" onclick="run('top -n 1')">CPU Usage</button>
         </div>
 
         <!-- Category: Network -->
         <div class="category">
             <div class="category-title">Network</div>
-            <button class="cmd-btn" onclick="run('ip addr show wlan0')">🌐 IP Address</button>
-            <button class="cmd-btn" onclick="run('ping -c 3 google.com')">📶 Ping Google</button>
-            <button class="cmd-btn" onclick="run('netstat -an | grep LISTEN')">🔌 Open Ports</button>
+            <button class="cmd-btn" onclick="run('ip addr show wlan0')">IP Address</button>
+            <button class="cmd-btn" onclick="run('ping -c 3 google.com')">Ping Google</button>
+            <button class="cmd-btn" onclick="run('netstat -an | grep LISTEN')">Open Ports</button>
         </div>
 
         <!-- Tools -->
         <div class="category">
             <div class="category-title">Tools</div>
-            <button class="cmd-btn" id="btn-clear">🧹 Clear Terminal</button>
+            <button class="cmd-btn" id="btn-clear">Clear Terminal</button>
         </div>
     </aside>
 
     <!-- MAIN CONTENT -->
     <div class="main-content">
         <header>
-            <h1>💻 Remote Shell</h1>
-            <a href="index.html" class="back-link">← Back to Dashboard</a>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <button class="btn btn-secondary" id="btn-sidebar" style="padding:4px 10px;font-size:0.8rem;"
+                    title="Toggle Sidebar">☰</button>
+                <h1>Remote Shell</h1>
+            </div>
+            <a href="index.html" class="back-link">&lt;-- Dashboard</a>
         </header>
 
         <div class="terminal-container" id="terminal">
@@ -284,7 +112,7 @@
         <div class="input-area">
             <span class="prompt">$</span>
             <input type="text" id="command-input" placeholder="Enter command..." autofocus autocomplete="off" />
-            <button class="btn btn-primary" id="btn-execute">Execute</button>
+            <button class="btn btn-primary" id="btn-execute">EXEC</button>
         </div>
     </div>
 
@@ -307,7 +135,14 @@
             line.className = type === 'error' ? 'output-line error-line' :
                 type === 'command' ? 'command-line' :
                     type === 'info' ? 'output-line info-line' : 'output-line';
-            line.textContent = text;
+
+            if (type === 'command') {
+                const ts = new Date().toLocaleTimeString();
+                line.innerHTML = `<span class="timestamp">[${ts}]</span> ${text}`;
+            } else {
+                line.textContent = text;
+            }
+
             terminal.appendChild(line);
             terminal.scrollTop = terminal.scrollHeight;
         }
@@ -365,6 +200,12 @@
         document.getElementById('btn-clear').addEventListener('click', () => {
             terminal.innerHTML = '';
             addOutput('Terminal cleared.', 'info');
+        });
+
+        // Sidebar toggle
+        document.getElementById('btn-sidebar').addEventListener('click', () => {
+            const sidebar = document.querySelector('.sidebar');
+            sidebar.style.display = sidebar.style.display === 'none' ? 'block' : 'none';
         });
 
         // Input History (Up/Down) & Enter

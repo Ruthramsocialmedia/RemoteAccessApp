@@ -5,175 +5,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Manager - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-        }
-
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #f0f0f0;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
         }
 
-        h1 {
-            color: #333;
-            font-size: 2em;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.9em;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            transition: all 0.2s;
-        }
-
-        .btn:hover {
-            transform: scale(1.05);
-        }
-
-        .toolbar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .breadcrumb {
-            background: #f9fafb;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-family: monospace;
-            color: #374151;
-            font-size: 0.95em;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            align-items: center;
-        }
-
-        .breadcrumb-link {
-            color: #667eea;
-            cursor: pointer;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .breadcrumb-link:hover {
-            color: #764ba2;
-            text-decoration: underline;
-        }
-
-        .breadcrumb-separator {
-            color: #9ca3af;
-            margin: 0 4px;
-        }
-
-        .file-list {
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            overflow: hidden;
+        header::before {
+            display: none;
         }
 
         .file-item {
             display: grid;
-            grid-template-columns: 40px 1fr auto auto;
-            gap: 15px;
-            padding: 15px;
-            border-bottom: 1px solid #f3f4f6;
-            align-items: center;
-            transition: background 0.2s;
-            cursor: pointer;
-        }
-
-        .file-item:hover {
-            background: #f9fafb;
-        }
-
-        .file-icon {
-            font-size: 24px;
-            text-align: center;
-        }
-
-        .file-name {
-            font-weight: 500;
-            color: #1f2937;
-        }
-
-        .folder-link {
-            color: #667eea;
-            cursor: pointer;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .folder-link:hover {
-            color: #764ba2;
-            text-decoration: underline;
-        }
-
-        .file-size {
-            color: #6b7280;
-            font-size: 0.9em;
-        }
-
-        .file-actions {
-            display: flex;
-            gap: 8px;
+            grid-template-columns: 32px 1fr auto auto;
+            gap: 12px;
         }
 
         .btn-small {
-            padding: 6px 12px;
-            font-size: 0.85em;
-            background: #f3f4f6;
-            color: #374151;
+            padding: 4px 10px;
+            font-size: 0.75rem;
         }
 
-        .btn-small:hover {
-            background: #e5e7eb;
+        .breadcrumb-link {
+            color: var(--accent);
+            cursor: pointer;
+            text-decoration: none;
         }
 
-        .btn-danger {
-            background: #ef4444;
-            color: white;
+        .breadcrumb-link:hover {
+            text-decoration: underline;
         }
 
-        .btn-danger:hover {
-            background: #dc2626;
-        }
-
-        input[type="file"] {
-            display: none;
+        .breadcrumb-separator {
+            color: var(--text-muted);
+            margin: 0 4px;
         }
     </style>
 </head>
@@ -181,15 +53,15 @@
 <body>
     <div class="container">
         <header>
-            <h1>📂 File Manager</h1>
-            <a href="index.html" class="btn">← Back</a>
+            <h1>File Manager <span class="count-badge" id="file-count" style="display:none">0</span></h1>
+            <a href="index.html" class="btn btn-secondary">&lt;-- Back</a>
         </header>
 
         <div class="toolbar">
-            <button class="btn" id="btn-upload">📤 Upload File</button>
-            <button class="btn" id="btn-newfolder">📁 New Folder</button>
-            <button class="btn" id="btn-home">🏠 Home</button>
-            <button class="btn" id="btn-refresh">🔄 Refresh</button>
+            <button class="btn btn-primary" id="btn-upload">UPLOAD FILE</button>
+            <button class="btn btn-primary" id="btn-newfolder">NEW FOLDER</button>
+            <button class="btn btn-secondary" id="btn-home">HOME</button>
+            <button class="btn btn-secondary" id="btn-refresh">REFRESH</button>
         </div>
 
         <input type="file" id="file-input" />
@@ -197,7 +69,7 @@
         <div class="breadcrumb" id="breadcrumb"></div>
 
         <div class="file-list" id="file-list">
-            <p style="padding: 20px;">Loading files...</p>
+            <div class="loading">Scanning files...</div>
         </div>
     </div>
 
@@ -237,7 +109,7 @@
             const breadcrumb = document.getElementById('breadcrumb');
             const parts = path.split('/').filter(p => p);
 
-            let html = '<span class="breadcrumb-link" onclick="loadFiles(\'/\')">🏠</span>';
+            let html = '<span class="breadcrumb-link" onclick="loadFiles(\'/\')">HOME</span>';
             let currentPath = '';
 
             parts.forEach((part, index) => {
@@ -276,15 +148,20 @@
 
         function renderFiles(files) {
             const container = document.getElementById('file-list');
+            const countEl = document.getElementById('file-count');
             let html = '';
+
+            // Update count badge
+            countEl.style.display = 'inline-block';
+            countEl.textContent = files.length + ' items';
 
             // Add Parent Directory item if not at root
             if (currentPath !== '/storage/emulated/0' && currentPath !== '/storage/emulated/0/') {
                 const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
                 html += `
-                    <div class="file-item" onclick="loadFiles('${parentPath}')" style="background:#f0f9ff; cursor:pointer">
+                    <div class="file-item" onclick="loadFiles('${parentPath}')" style="cursor:pointer">
                         <div class="file-icon">📁</div>
-                        <div class="file-name">.. (Parent Directory)</div>
+                        <div class="file-name" style="color:var(--accent)">.. (Parent Directory)</div>
                         <div class="file-size"></div>
                         <div class="file-actions"></div>
                     </div>
@@ -292,7 +169,12 @@
             }
 
             if (files.length === 0) {
-                if (!html) html = '<p style="padding: 20px;">Empty folder</p>';
+                countEl.textContent = 'empty';
+                if (!html) html = `
+                    <div class="empty-state">
+                        <h2>Empty Folder</h2>
+                        <p>No files or subdirectories found.</p>
+                    </div>`;
             } else {
                 html += files.map(file => {
                     const isFolder = file.type === 'folder' || file.type === 'directory';
@@ -310,9 +192,9 @@
                           <div class="file-name">${nameHtml}</div>
                           <div class="file-size">${file.type === 'file' ? api.formatFileSize(file.size) : ''}</div>
                           <div class="file-actions">
-                            <button class="btn btn-small" onclick="downloadFile('${file.name}')">Download</button>
-                            <button class="btn btn-small" onclick="renameFile('${file.name}')">Rename</button>
-                            <button class="btn btn-small btn-danger" onclick="deleteFile('${file.name}')">Delete</button>
+                            <button class="btn btn-small btn-secondary" onclick="downloadFile('${file.name}')">DL</button>
+                            <button class="btn btn-small btn-secondary" onclick="renameFile('${file.name}')">REN</button>
+                            <button class="btn btn-small btn-danger" onclick="deleteFile('${file.name}')">DEL</button>
                           </div>
                         </div>
                     `;
@@ -334,7 +216,6 @@
             const folderName = prompt('Enter folder name:');
             if (!folderName) return;
 
-            // Allow alphabets, numbers, underscores, hyphens, and spaces
             if (!/^[a-zA-Z0-9_\-\s]+$/.test(folderName)) {
                 api.showToast('Invalid folder name', 'error');
                 return;
@@ -371,7 +252,6 @@
 
                 try {
                     api.showToast('Uploading...', 'info');
-                    // Upload to current path/filename
                     await api.uploadFile(deviceId, file, `${currentPath}/${file.name}`);
                     loadFiles(currentPath);
                 } catch (error) {
@@ -404,7 +284,6 @@
             const newName = prompt('Enter new name:', oldName);
             if (!newName || newName === oldName) return;
 
-            // Basic validation
             if (!/^[a-zA-Z0-9_\-\s.]+$/.test(newName)) {
                 api.showToast('Invalid filename', 'error');
                 return;

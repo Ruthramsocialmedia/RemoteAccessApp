@@ -5,89 +5,54 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Microphone - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
     <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a1a;
-            color: white;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        header::before {
+            display: none;
         }
 
         .control-panel {
-            background: #0d1117;
-            border-radius: 12px;
-            padding: 30px;
-            margin-bottom: 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .control-panel h2 {
+            color: var(--accent);
+            font-size: 1rem;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .controls {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .btn {
-            padding: 16px 24px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            background: #238636;
-            color: white;
-            transition: all 0.2s;
-            font-size: 1em;
-        }
-
-        .btn:hover {
-            background: #2ea043;
-        }
-
-        .btn-danger {
-            background: #dc2626;
-        }
-
-        .btn-danger:hover {
-            background: #ef4444;
-        }
-
-        .btn-secondary {
-            background: #374151;
-        }
-
-        .btn:disabled {
-            background: #4b5563;
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
-
-        .status-indicator {
-            text-align: center;
-            padding: 20px;
-            border-radius: 8px;
-            background: #1f2937;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
         }
 
         .status-indicator.active {
-            background: #065f46;
+            border-color: var(--accent-dim);
+            box-shadow: 0 0 20px var(--accent-glow);
         }
 
         .status-indicator.recording {
-            background: #991b1b;
+            border-color: var(--danger);
+            box-shadow: 0 0 20px var(--danger-glow);
             animation: pulse 1.5s ease-in-out infinite;
         }
 
@@ -103,22 +68,50 @@
             }
         }
 
-        h2 {
-            margin-bottom: 15px;
-            font-size: 1.3em;
+        .status-indicator h2 {
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+            color: var(--text-primary);
+        }
+
+        .status-indicator p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
         }
 
         .audio-visualizer {
             width: 100%;
             height: 60px;
-            background: #1f2937;
-            border-radius: 8px;
-            margin-top: 15px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            margin-top: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #6b7280;
-            font-size: 14px;
+            gap: 3px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            overflow: hidden;
+        }
+
+        .audio-visualizer .vis-bar {
+            width: 4px;
+            background: var(--accent);
+            border-radius: 2px;
+            animation: visBar 0.8s ease-in-out infinite alternate;
+        }
+
+        @keyframes visBar {
+            from {
+                height: 6px;
+                opacity: 0.3;
+            }
+
+            to {
+                height: 40px;
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -126,20 +119,20 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎙️ Microphone Control</h1>
-            <a href="index.html" class="btn btn-secondary">← Back</a>
+            <h1>Microphone Control</h1>
+            <a href="index.html" class="btn btn-secondary">&lt;-- Back</a>
         </header>
 
         <div class="status-indicator" id="status">
-            <h2>⚪ Idle</h2>
+            <h2>&#x26AA; Idle</h2>
             <p>No active microphone session</p>
         </div>
 
         <div class="control-panel">
             <h2>Live Audio</h2>
             <div class="controls">
-                <button class="btn" id="btn-start-live">🔴 Start Live Listen</button>
-                <button class="btn btn-danger" id="btn-stop-live" disabled>⏹️ Stop Live</button>
+                <button class="btn btn-primary" id="btn-start-live">START LIVE LISTEN</button>
+                <button class="btn btn-danger" id="btn-stop-live" disabled>STOP LIVE</button>
             </div>
             <div class="audio-visualizer" id="visualizer">Waiting for audio...</div>
         </div>
@@ -147,8 +140,12 @@
         <div class="control-panel">
             <h2>Recording</h2>
             <div class="controls">
-                <button class="btn" id="btn-start-record">⏺️ Start Recording</button>
-                <button class="btn btn-danger" id="btn-stop-record" disabled>⏹️ Stop Recording</button>
+                <button class="btn btn-primary" id="btn-start-record">START RECORDING</button>
+                <button class="btn btn-danger" id="btn-stop-record" disabled>STOP RECORDING</button>
+            </div>
+            <div class="rec-timer" id="mic-rec-timer" style="display:none; margin-top: 10px;">
+                <span class="rec-dot"></span>
+                <span id="mic-rec-time">00:00</span>
             </div>
         </div>
     </div>
@@ -162,6 +159,25 @@
         let startTime = null;  // AudioContext clock
         let schedulerInterval = null;
         let ws = null;
+        let micRecStart = null;
+        let micRecInterval = null;
+
+        function startMicRecTimer() {
+            micRecStart = Date.now();
+            document.getElementById('mic-rec-timer').style.display = 'inline-flex';
+            micRecInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - micRecStart) / 1000);
+                const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+                document.getElementById('mic-rec-time').textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopMicRecTimer() {
+            clearInterval(micRecInterval);
+            document.getElementById('mic-rec-timer').style.display = 'none';
+            document.getElementById('mic-rec-time').textContent = '00:00';
+        }
 
         // Jitter buffer constants
         const SAMPLE_RATE = 16000;
@@ -220,7 +236,7 @@
             for (let i = 0; i < binaryString.length; i++) {
                 bytes[i] = binaryString.charCodeAt(i);
             }
-            
+
             const pcm16 = new Int16Array(bytes.buffer);
             const float32 = new Float32Array(pcm16.length);
             for (let i = 0; i < pcm16.length; i++) {
@@ -234,16 +250,16 @@
             try {
                 // Parse JSON frame: {"ts": 123456, "pcm": "base64..."}
                 const frame = JSON.parse(frameJson);
-                
+
                 // Add to jitter buffer
                 jitterBuffer.push(frame);
-                
+
                 // Drop old packets (>300ms old)
                 const now = performance.now();
                 jitterBuffer = jitterBuffer.filter(p => now - p.ts < 300);
-                
+
                 // Update visualizer
-                updateVisualizer(`🎵 Receiving audio... (${jitterBuffer.length} buffered)`);
+                updateVisualizer(`Receiving audio... (${jitterBuffer.length} buffered)`);
             } catch (error) {
                 console.error('Error handling audio frame:', error);
             }
@@ -279,7 +295,17 @@
         }
 
         function updateVisualizer(text) {
-            document.getElementById('visualizer').textContent = text;
+            const vis = document.getElementById('visualizer');
+            if (currentState === 'live') {
+                // Show animated bars
+                let bars = '';
+                for (let i = 0; i < 20; i++) {
+                    bars += `<div class="vis-bar" style="animation-delay:${(i * 0.07).toFixed(2)}s"></div>`;
+                }
+                vis.innerHTML = bars;
+            } else {
+                vis.textContent = text;
+            }
         }
 
         function updateStatus(state, message) {
@@ -288,12 +314,12 @@
 
             if (state === 'live') {
                 statusEl.className += ' active';
-                statusEl.innerHTML = '<h2>🟢 Live Listening</h2><p>' + message + '</p>';
+                statusEl.innerHTML = '<h2>&#x1F7E2; Live Listening</h2><p>' + message + '</p>';
             } else if (state === 'recording') {
                 statusEl.className += ' recording';
-                statusEl.innerHTML = '<h2>🔴 Recording</h2><p>' + message + '</p>';
+                statusEl.innerHTML = '<h2>&#x1F534; Recording</h2><p>' + message + '</p>';
             } else {
-                statusEl.innerHTML = '<h2>⚪ Idle</h2><p>No active microphone session</p>';
+                statusEl.innerHTML = '<h2>&#x26AA; Idle</h2><p>No active microphone session</p>';
             }
 
             currentState = state;
@@ -358,6 +384,7 @@
                 updateStatus('recording', 'Audio is being recorded to file');
                 document.getElementById('btn-start-record').disabled = true;
                 document.getElementById('btn-stop-record').disabled = false;
+                startMicRecTimer();
                 api.showToast('Recording started', 'success');
             } catch (error) {
                 api.showToast('Failed: ' + error.message, 'error');
@@ -367,6 +394,7 @@
         async function stopRecord() {
             try {
                 const result = await api.sendCommand(deviceId, 'mic_record_stop');
+                stopMicRecTimer();
                 updateStatus('idle', '');
                 document.getElementById('btn-start-record').disabled = false;
                 document.getElementById('btn-stop-record').disabled = true;

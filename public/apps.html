@@ -5,125 +5,58 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>App Management - Remote Access</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #f0f2f5;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        h1 {
-            color: #333;
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-
-        .app-list {
-            list-style: none;
-            padding: 0;
-        }
-
-        .app-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .app-item:last-child {
-            border-bottom: none;
-        }
-
-        .app-info h3 {
-            margin: 0 0 5px;
-            font-size: 1.1em;
-            color: #333;
-        }
-
-        .app-info p {
-            margin: 0;
-            color: #666;
-            font-size: 0.9em;
-        }
-
-        .actions {
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            color: white;
-            transition: opacity 0.2s;
-        }
-
-        .btn:hover {
-            opacity: 0.9;
-        }
-
-        .btn-launch {
-            background: #10b981;
-        }
-
-        .btn-uninstall {
-            background: #ef4444;
-        }
-
-        .back-link {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
 </head>
 
 <body>
-    <a href="index.html" class="back-link">← Back to Dashboard</a>
     <div class="container">
-        <h1>📱 Installed Apps</h1>
-        <div id="app-list" class="app-list loading">Loading apps...</div>
+        <a href="index.html" class="back-link">&lt;-- Back to Dashboard</a>
+        <header>
+            <h1>Installed Applications <span class="count-badge" id="app-count" style="display:none">0</span></h1>
+            <p>// package manager</p>
+        </header>
+
+        <!-- Search bar -->
+        <div class="search-bar">
+            <input type="search" id="app-search" placeholder="Search apps by name or package..." oninput="filterApps()">
+        </div>
+
+        <div id="app-list" class="app-list loading">Scanning packages...</div>
     </div>
 
     <script src="/js/api.js"></script>
     <script>
         const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        let allApps = [];
 
         async function loadApps() {
             try {
                 const response = await api.sendCommand(deviceId, 'apps_list');
 
-                // Android returns: { success: true, data: { status: 'success', data: [...], count: N } }
-                // The actual apps array is in response.data.data
                 if (response.success && response.data && response.data.status === 'success') {
-                    renderApps(response.data.data || []);
+                    allApps = response.data.data || [];
+                    document.getElementById('app-count').style.display = 'inline-block';
+                    document.getElementById('app-count').textContent = allApps.length;
+                    renderApps(allApps);
                 } else {
                     throw new Error(response.error || response.data?.error || 'Failed to load apps');
                 }
             } catch (error) {
-                document.getElementById('app-list').innerHTML = `<p style="color:red">Error: ${error.message}</p>`;
+                document.getElementById('app-list').innerHTML = `<p style="color:var(--danger)">Error: ${error.message}</p>`;
             }
+        }
+
+        function filterApps() {
+            const query = document.getElementById('app-search').value.toLowerCase().trim();
+            if (!query) {
+                renderApps(allApps);
+                return;
+            }
+            const filtered = allApps.filter(app =>
+                app.name.toLowerCase().includes(query) ||
+                app.package.toLowerCase().includes(query)
+            );
+            renderApps(filtered);
         }
 
         function renderApps(apps) {
@@ -131,7 +64,11 @@
             container.className = 'app-list';
 
             if (apps.length === 0) {
-                container.innerHTML = '<p style="text-align:center">No user apps found.</p>';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h2>No Apps Found</h2>
+                        <p>${allApps.length > 0 ? 'No apps match your search.' : 'No user apps found on device.'}</p>
+                    </div>`;
                 return;
             }
 
@@ -142,8 +79,8 @@
                         <p>${app.package} (v${app.version})</p>
                     </div>
                     <div class="actions">
-                        <button class="btn btn-launch" onclick="launchApp('${app.package}')">🚀 Launch</button>
-                        <button class="btn btn-uninstall" onclick="uninstallApp('${app.package}')">🗑️ Uninstall</button>
+                        <button class="btn btn-launch" onclick="launchApp('${app.package}')">LAUNCH</button>
+                        <button class="btn btn-uninstall" onclick="uninstallApp('${app.package}')">UNINSTALL</button>
                     </div>
                 </div>
             `).join('');

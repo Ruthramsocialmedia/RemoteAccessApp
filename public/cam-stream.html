@@ -5,18 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Camera - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
     <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a1a;
-            color: white;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
+        .camera-container {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 16px;
+            text-align: center;
+            min-height: 300px;
+            position: relative;
         }
 
         header {
@@ -24,52 +22,14 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            padding: 16px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
         }
 
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            background: #238636;
-            color: white;
-            transition: all 0.2s;
-        }
-
-        .btn:hover {
-            background: #2ea043;
-        }
-
-        .btn-secondary {
-            background: #374151;
-        }
-
-        .camera-container {
-            background: #0d1117;
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            min-height: 400px;
-        }
-
-        #camera-display {
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
-        }
-
-        .placeholder {
-            padding: 100px 20px;
-            color: #6b7280;
-            font-size: 1.2em;
+        header::before {
+            display: none;
         }
     </style>
 </head>
@@ -77,28 +37,33 @@
 <body>
     <div class="container">
         <header>
-            <h1>📸 Camera Control</h1>
-            <a href="index.html" class="btn btn-secondary">← Back</a>
+            <h1>Camera Control</h1>
+            <a href="index.html" class="btn btn-secondary">&lt;-- Back</a>
         </header>
 
         <div class="controls">
             <!-- Preview Controls -->
-            <button class="btn" id="btn-start-preview">▶️ Start Preview</button>
-            <button class="btn btn-secondary" id="btn-stop-preview" style="display: none;">⏹️ Stop Preview</button>
+            <button class="btn btn-primary" id="btn-start-preview">START PREVIEW</button>
+            <button class="btn btn-secondary" id="btn-stop-preview" style="display: none;">STOP PREVIEW</button>
 
             <!-- Photo/Video Controls -->
-            <button class="btn" id="btn-photo">📸 Take Photo</button>
-            <button class="btn" id="btn-switch">🔄 Switch Camera</button>
+            <button class="btn btn-primary" id="btn-photo">TAKE PHOTO</button>
+            <button class="btn btn-secondary" id="btn-switch">SWITCH CAM</button>
 
             <!-- Recording Controls -->
-            <button class="btn" id="btn-start-record">⏺️ Record Video</button>
-            <button class="btn btn-secondary" id="btn-stop-record" style="display: none;">bw Stop Recording</button>
+            <button class="btn btn-danger" id="btn-start-record">RECORD VIDEO</button>
+            <button class="btn btn-danger" id="btn-stop-record" style="display: none;">STOP RECORDING</button>
         </div>
 
         <div class="camera-container">
-            <div id="status-indicator" style="margin-bottom: 10px; color: #888;">State: IDLE</div>
+            <div id="status-indicator" style="margin-bottom: 10px; color: var(--text-muted); font-size: 0.85rem;">State:
+                IDLE</div>
+            <div class="rec-timer" id="rec-timer" style="display:none;">
+                <span class="rec-dot"></span>
+                <span id="rec-time">00:00</span>
+            </div>
             <div id="placeholder" class="placeholder">
-                Click "Start Preview" to view camera feed
+                Click "START PREVIEW" to view camera feed
             </div>
             <img id="camera-display" style="display: none;" />
         </div>
@@ -130,6 +95,26 @@
             RECORDING: 'RECORDING'
         };
         let currentState = STATES.IDLE;
+        let recStartTime = null;
+        let recTimerInterval = null;
+
+        function startRecTimer() {
+            recStartTime = Date.now();
+            document.getElementById('rec-timer').style.display = 'inline-flex';
+            recTimerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - recStartTime) / 1000);
+                const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+                document.getElementById('rec-time').textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopRecTimer() {
+            clearInterval(recTimerInterval);
+            recTimerInterval = null;
+            document.getElementById('rec-timer').style.display = 'none';
+            document.getElementById('rec-time').textContent = '00:00';
+        }
 
         function updateUI(state) {
             currentState = state;
@@ -156,7 +141,7 @@
                 case STATES.PREVIEWING:
                     hide(btnStartPreview);
                     show(btnStopPreview);
-                    show(btnStartRecord); // Can record while previewing
+                    show(btnStartRecord);
                     hide(btnStopRecord);
                     show(btnPhoto);
                     show(btnSwitch);
@@ -167,24 +152,23 @@
 
                 case STATES.RECORDING:
                     hide(btnStartPreview);
-                    hide(btnStopPreview); // Users want this hidden to prevent accidents
+                    hide(btnStopPreview);
                     hide(btnStartRecord);
                     show(btnStopRecord);
-                    disable(btnPhoto); // Visible but disabled
+                    disable(btnPhoto);
                     hide(btnSwitch);
 
-                    show(imgDisplay); // SHOW THE PREVIEW!
-                    show(placeholder); // Use placeholder as overlay
-                    placeholder.classList.add('recording-overlay'); // Ensure CSS makes this an overlay
-                    placeholder.innerHTML = '<div style="background: rgba(255,0,0,0.7); color: white; padding: 10px; border-radius: 5px;">🔴 Recording...</div>';
-                    // We need to ensure placeholder doesn't block the video if it's not styled as absolute overlay
-                    // Assuming existing CSS handles it or we inject inline style if safe
+                    show(imgDisplay);
+                    show(placeholder);
+                    placeholder.classList.add('recording-overlay');
+                    placeholder.innerHTML = '<div style="background: rgba(255,0,0,0.7); color: white; padding: 10px; border-radius: 5px;">&#x1F534; Recording...</div>';
                     placeholder.style.position = 'absolute';
                     placeholder.style.top = '10px';
                     placeholder.style.left = '50%';
                     placeholder.style.transform = 'translateX(-50%)';
                     placeholder.style.zIndex = '100';
                     placeholder.style.background = 'transparent';
+                    startRecTimer();
                     break;
             }
         }
@@ -192,7 +176,7 @@
         // --- PREVIEW ---
         async function startPreview() {
             try {
-                updateUI(STATES.PREVIEWING); // Optimistic update
+                updateUI(STATES.PREVIEWING);
                 await api.sendCommand(deviceId, 'camera_stream_start');
                 api.showToast('Camera preview started', 'success');
             } catch (error) {
@@ -233,11 +217,6 @@
                 if (result.path || result.displayPath) {
                     const displayPath = result.displayPath || prettifyPath(result.path);
                     window.api.showToast(`Photo saved to: ${displayPath}`, 'success');
-
-                    // Prompt file download
-                    // Use generic file_download if strictly needed, or just toast
-                    // User requirement: "All files... visible in file manager".
-                    // Server handles save.
                 }
             } catch (error) {
                 window.api.showToast('Failed: ' + error.message, 'error');
@@ -262,7 +241,7 @@
                 updateUI(STATES.RECORDING);
                 const response = await window.api.sendCommand(deviceId, 'camera_record_start');
 
-                // Store path for stop message
+
                 if (response && response.path) {
                     lastRecordingPath = response.path;
                 }
@@ -279,7 +258,7 @@
             if (!window.api) return;
             try {
                 await window.api.sendCommand(deviceId, 'camera_record_stop');
-                // USER REQUIREMENT: Stop Recording -> PREVIEWING
+                stopRecTimer();
                 updateUI(STATES.PREVIEWING);
 
                 const displayPath = prettifyPath(lastRecordingPath);
@@ -308,7 +287,6 @@
 
         ws.onopen = () => {
             console.log('Camera WebSocket connected');
-            // Send initial ping or identification if needed
             ws.send(JSON.stringify({ type: 'identify', deviceId: 'browser' }));
         };
 
@@ -316,10 +294,8 @@
             try {
                 const message = JSON.parse(event.data);
 
-                // Handle Camera Frames
                 if (message.type === 'camera_frame' && message.deviceId === deviceId) {
                     if (currentState === STATES.PREVIEWING) {
-                        // Optimistic update if still in "Start Preview" loading phase
                         if (imgDisplay.style.display === 'none') {
                             document.getElementById('status-indicator').textContent = 'State: PREVIEWING (Receiving Frames)';
                             imgDisplay.style.display = 'block';
@@ -329,9 +305,7 @@
                     }
                 }
 
-                // Handle Command Responses (Optional, if we want real-time status updates)
                 if (message.type === 'command_result') {
-                    // console.log('Command result:', message);
                     // Could update UI based on success/failure here
                 }
             } catch (e) {
@@ -341,7 +315,6 @@
 
         ws.onerror = (error) => {
             console.error('WebSocket error:', error);
-            // statusIndicator.textContent = 'Connection Error';
         };
     </script>
 </body>
