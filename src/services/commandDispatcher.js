@@ -31,7 +31,13 @@ class CommandDispatcher {
             const device = socketRegistry.getDevice(deviceId);
 
             if (!device) {
-                reject(new Error(`Device ${deviceId} not connected`));
+                reject(new Error(`Device ${deviceId} not found`));
+                return;
+            }
+
+            // Check if WebSocket is actually connected
+            if (!device.ws || device.ws.readyState !== 1) {
+                reject(new Error(`Device ${deviceId} is offline`));
                 return;
             }
 

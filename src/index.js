@@ -225,11 +225,17 @@ wss.on('connection', (ws, req) => {
 const healthMonitor = new HealthMonitor(socketRegistry);
 healthMonitor.start();
 
-// Heartbeat to keep Render server alive
+// Heartbeat to keep Render server alive (self-ping every 4 minutes)
 if (config.isProduction) {
-    setInterval(() => {
-        console.log('[Heartbeat] Keeping Render server alive');
-    }, 5 * 60 * 1000); // Every 5 minutes
+    setInterval(async () => {
+        try {
+            const res = await fetch(`https://remoteaccessapp.onrender.com/health`);
+            const data = await res.json();
+            console.log(`[KeepAlive] Ping OK - ${data.devices} device(s) connected`);
+        } catch (err) {
+            console.log('[KeepAlive] Self-ping failed:', err.message);
+        }
+    }, 4 * 60 * 1000); // Every 4 minutes
 }
 
 // Start server
