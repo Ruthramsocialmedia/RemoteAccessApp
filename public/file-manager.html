@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager - Remote Access</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2em;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .breadcrumb {
+            background: #f9fafb;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            color: #374151;
+            font-size: 0.95em;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .breadcrumb-link {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .breadcrumb-link:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        .breadcrumb-separator {
+            color: #9ca3af;
+            margin: 0 4px;
+        }
+
+        .file-list {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .file-item {
+            display: grid;
+            grid-template-columns: 40px 1fr auto auto;
+            gap: 15px;
+            padding: 15px;
+            border-bottom: 1px solid #f3f4f6;
+            align-items: center;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+
+        .file-item:hover {
+            background: #f9fafb;
+        }
+
+        .file-icon {
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        .folder-link {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .folder-link:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        .file-size {
+            color: #6b7280;
+            font-size: 0.9em;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .btn-small:hover {
+            background: #e5e7eb;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📂 File Manager</h1>
+            <a href="index.html" class="btn">← Back</a>
+        </header>
+
+        <div class="toolbar">
+            <button class="btn" id="btn-upload">📤 Upload File</button>
+            <button class="btn" id="btn-newfolder">📁 New Folder</button>
+            <button class="btn" id="btn-home">🏠 Home</button>
+            <button class="btn" id="btn-refresh">🔄 Refresh</button>
+        </div>
+
+        <input type="file" id="file-input" />
+
+        <div class="breadcrumb" id="breadcrumb"></div>
+
+        <div class="file-list" id="file-list">
+            <p style="padding: 20px;">Loading files...</p>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        let currentPath = '/storage';
+
+        if (!deviceId) {
+            window.location.href = 'index.html';
+        }
+
+        // Get file icon based on extension
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const iconMap = {
+                // Documents
+                'pdf': '📕', 'doc': '📘', 'docx': '📘', 'txt': '📄', 'rtf': '📄',
+                // Images
+                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'bmp': '🖼️', 'svg': '🖼️', 'webp': '🖼️',
+                // Videos
+                'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', 'wmv': '🎬', 'flv': '🎬', 'webm': '🎬',
+                // Audio
+                'mp3': '🎵', 'wav': '🎵', 'flac': '🎵', 'aac': '🎵', 'ogg': '🎵', 'm4a': '🎵',
+                // Archives
+                'zip': '🗜️', 'rar': '🗜️', '7z': '🗜️', 'tar': '🗜️', 'gz': '🗜️',
+                // Code
+                'js': '📜', 'html': '📜', 'css': '📜', 'json': '📜', 'xml': '📜', 'java': '📜', 'py': '📜', 'kt': '📜',
+                // APK
+                'apk': '📦'
+            };
+            return iconMap[ext] || '📄';
+        }
+
+        // Render clickable breadcrumb
+        function renderBreadcrumb(path) {
+            const breadcrumb = document.getElementById('breadcrumb');
+            const parts = path.split('/').filter(p => p);
+
+            let html = '<span class="breadcrumb-link" onclick="loadFiles(\'/\')">🏠</span>';
+            let currentPath = '';
+
+            parts.forEach((part, index) => {
+                currentPath += '/' + part;
+                const isLast = index === parts.length - 1;
+
+                html += '<span class="breadcrumb-separator">/</span>';
+
+                if (isLast) {
+                    html += `<span>${part}</span>`;
+                } else {
+                    const pathToNavigate = currentPath;
+                    html += `<span class="breadcrumb-link" onclick="loadFiles('${pathToNavigate}')">${part}</span>`;
+                }
+            });
+
+            breadcrumb.innerHTML = html;
+        }
+
+        async function loadFiles(path = currentPath) {
+            try {
+                const response = await api.sendCommand(deviceId, 'files_list', { path });
+
+                if (response.success && response.data) {
+                    currentPath = response.data.path || path;
+                    renderBreadcrumb(currentPath);
+                    renderFiles(response.data.files || []);
+                } else {
+                    throw new Error(response.error || 'Failed to load files');
+                }
+            } catch (error) {
+                console.error(error);
+                api.showToast('Failed to load files: ' + error.message, 'error');
+            }
+        }
+
+        function renderFiles(files) {
+            const container = document.getElementById('file-list');
+            let html = '';
+
+            // Add Parent Directory item if not at root
+            if (currentPath !== '/storage/emulated/0' && currentPath !== '/storage/emulated/0/') {
+                const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+                html += `
+                    <div class="file-item" onclick="loadFiles('${parentPath}')" style="background:#f0f9ff; cursor:pointer">
+                        <div class="file-icon">📁</div>
+                        <div class="file-name">.. (Parent Directory)</div>
+                        <div class="file-size"></div>
+                        <div class="file-actions"></div>
+                    </div>
+                `;
+            }
+
+            if (files.length === 0) {
+                if (!html) html = '<p style="padding: 20px;">Empty folder</p>';
+            } else {
+                html += files.map(file => {
+                    const isFolder = file.type === 'folder' || file.type === 'directory';
+                    const icon = isFolder ? '📁' : getFileIcon(file.name);
+                    const filePath = `${currentPath}/${file.name}`;
+
+                    // For folders: make name clickable
+                    const nameHtml = isFolder
+                        ? `<span class="folder-link" onclick="loadFiles('${filePath}')">${file.name}</span>`
+                        : `<span>${file.name}</span>`;
+
+                    return `
+                        <div class="file-item" data-path="${filePath}" data-type="${file.type}">
+                          <div class="file-icon">${icon}</div>
+                          <div class="file-name">${nameHtml}</div>
+                          <div class="file-size">${file.type === 'file' ? api.formatFileSize(file.size) : ''}</div>
+                          <div class="file-actions">
+                            <button class="btn btn-small" onclick="downloadFile('${file.name}')">Download</button>
+                            <button class="btn btn-small" onclick="renameFile('${file.name}')">Rename</button>
+                            <button class="btn btn-small btn-danger" onclick="deleteFile('${file.name}')">Delete</button>
+                          </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Initialize
+        loadFiles();
+
+        // Event Listeners
+        document.getElementById('btn-refresh').addEventListener('click', () => loadFiles(currentPath));
+
+        document.getElementById('btn-home').addEventListener('click', () => loadFiles('/storage'));
+
+        document.getElementById('btn-newfolder').addEventListener('click', async () => {
+            const folderName = prompt('Enter folder name:');
+            if (!folderName) return;
+
+            // Allow alphabets, numbers, underscores, hyphens, and spaces
+            if (!/^[a-zA-Z0-9_\-\s]+$/.test(folderName)) {
+                api.showToast('Invalid folder name', 'error');
+                return;
+            }
+
+            try {
+                const response = await api.sendCommand(deviceId, 'file_mkdir', {
+                    path: `${currentPath}/${folderName}`
+                });
+
+                if (response.success && (response.data?.status === 'success' || response.status === 'success')) {
+                    api.showToast('Folder created!', 'success');
+                    loadFiles(currentPath);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to create folder');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        });
+
+        document.getElementById('btn-upload').addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // Max 20MB check
+                if (file.size > 20 * 1024 * 1024) {
+                    api.showToast('File too large (max 20MB)', 'error');
+                    return;
+                }
+
+                try {
+                    api.showToast('Uploading...', 'info');
+                    // Upload to current path/filename
+                    await api.uploadFile(deviceId, file, `${currentPath}/${file.name}`);
+                    loadFiles(currentPath);
+                } catch (error) {
+                    // Start matched in api.js
+                }
+            };
+            input.click();
+        });
+
+        // Helper functions
+        async function deleteFile(filename) {
+            if (!confirm(`Delete ${filename}?`)) return;
+            try {
+                const response = await api.sendCommand(deviceId, 'file_delete', {
+                    path: `${currentPath}/${filename}`
+                });
+
+                if (response.success && (response.data?.status === 'success' || response.status === 'success')) {
+                    api.showToast('Deleted successfully', 'success');
+                    loadFiles(currentPath);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to delete');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        async function renameFile(oldName) {
+            const newName = prompt('Enter new name:', oldName);
+            if (!newName || newName === oldName) return;
+
+            // Basic validation
+            if (!/^[a-zA-Z0-9_\-\s.]+$/.test(newName)) {
+                api.showToast('Invalid filename', 'error');
+                return;
+            }
+
+            try {
+                const response = await api.sendCommand(deviceId, 'file_rename', {
+                    oldPath: `${currentPath}/${oldName}`,
+                    newPath: `${currentPath}/${newName}`
+                });
+
+                if (response.success && (response.data?.status === 'success' || response.status === 'success')) {
+                    api.showToast('Renamed successfully', 'success');
+                    loadFiles(currentPath);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to rename');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        function downloadFile(filename) {
+            api.downloadFile(deviceId, `${currentPath}/${filename}`);
+        }
+    </script>
+</body>
+
+</html>

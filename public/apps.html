@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Management - Remote Access</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .app-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .app-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .app-item:last-child {
+            border-bottom: none;
+        }
+
+        .app-info h3 {
+            margin: 0 0 5px;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        .app-info p {
+            margin: 0;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: white;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-launch {
+            background: #10b981;
+        }
+
+        .btn-uninstall {
+            background: #ef4444;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back-link">← Back to Dashboard</a>
+    <div class="container">
+        <h1>📱 Installed Apps</h1>
+        <div id="app-list" class="app-list loading">Loading apps...</div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+
+        async function loadApps() {
+            try {
+                const response = await api.sendCommand(deviceId, 'apps_list');
+
+                // Android returns: { success: true, data: { status: 'success', data: [...], count: N } }
+                // The actual apps array is in response.data.data
+                if (response.success && response.data && response.data.status === 'success') {
+                    renderApps(response.data.data || []);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to load apps');
+                }
+            } catch (error) {
+                document.getElementById('app-list').innerHTML = `<p style="color:red">Error: ${error.message}</p>`;
+            }
+        }
+
+        function renderApps(apps) {
+            const container = document.getElementById('app-list');
+            container.className = 'app-list';
+
+            if (apps.length === 0) {
+                container.innerHTML = '<p style="text-align:center">No user apps found.</p>';
+                return;
+            }
+
+            container.innerHTML = apps.map(app => `
+                <div class="app-item">
+                    <div class="app-info">
+                        <h3>${app.name}</h3>
+                        <p>${app.package} (v${app.version})</p>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-launch" onclick="launchApp('${app.package}')">🚀 Launch</button>
+                        <button class="btn btn-uninstall" onclick="uninstallApp('${app.package}')">🗑️ Uninstall</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function launchApp(packageName) {
+            try {
+                await api.sendCommand(deviceId, 'app_launch', { package: packageName });
+                api.showToast('App launched!', 'success');
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        async function uninstallApp(packageName) {
+            if (!confirm(`Are you sure you want to uninstall ${packageName}? This will show a system prompt on the device.`)) return;
+
+            try {
+                await api.sendCommand(deviceId, 'app_uninstall', { package: packageName });
+                api.showToast('Uninstall prompt sent to device', 'info');
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        loadApps();
+    </script>
+</body>
+
+</html>

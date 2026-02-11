@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contacts - Remote Access</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            color: #333;
+        }
+
+        .contact-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .contact-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            border: 1px solid #eee;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+
+        .info h3 {
+            margin: 0 0 5px;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        .info p {
+            margin: 0;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: white;
+            background: #3b82f6;
+            transition: 0.2s;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back-link">← Back to Dashboard</a>
+    <div class="container">
+        <div class="header-row">
+            <h1>📇 Contacts</h1>
+            <button class="btn" onclick="exportContacts()">📥 Export CSV</button>
+        </div>
+        <div id="contact-list" class="contact-list loading">Loading contacts...</div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+
+        // Pagination state
+        let offset = 0;
+        let allContacts = [];
+        let isLoading = false;
+        let hasMore = true;
+
+        async function loadContacts() {
+            if (isLoading) return;
+
+            isLoading = true;
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            if (loadMoreBtn) {
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.textContent = 'Loading...';
+            }
+
+            try {
+                const response = await api.sendCommand(deviceId, 'contacts_list', {
+                    limit: 50,
+                    offset: offset
+                });
+
+                // Android returns: { success: true, data: { status: 'success', data: [...], hasMore, nextOffset } }
+                if (response.success && response.data && response.data.status === 'success') {
+                    const newContacts = response.data.data || [];
+                    hasMore = response.data.hasMore || false;
+                    offset = response.data.nextOffset || (offset + 50);
+
+                    allContacts = allContacts.concat(newContacts);
+                    renderContacts(allContacts, hasMore);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to load contacts');
+                }
+            } catch (error) {
+                document.getElementById('contact-list').innerHTML = `<p style="color:red">Error: ${error.message}</p>`;
+            } finally {
+                isLoading = false;
+                if (loadMoreBtn) {
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.textContent = '📥 Load More (50)';
+                }
+            }
+        }
+
+        function renderContacts(contacts, hasMore) {
+            const container = document.getElementById('contact-list');
+            container.className = 'contact-list';
+
+            if (contacts.length === 0) {
+                container.innerHTML = '<p style="text-align:center">No contacts found.</p>';
+                // If no contacts, ensure load more button is hidden
+                let loadMoreBtn = document.getElementById('load-more-btn');
+                if (loadMoreBtn) {
+                    loadMoreBtn.style.display = 'none';
+                }
+                return;
+            }
+
+            container.innerHTML = contacts.map(c => `
+                <div class="contact-card">
+                    <div class="avatar">${c.name.charAt(0).toUpperCase()}</div>
+                    <div class="info">
+                        <h3>${c.name}</h3>
+                        <p>${c.phones.join(', ')}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add/update Load More button
+            let loadMoreBtn = document.getElementById('load-more-btn');
+            if (!loadMoreBtn) {
+                loadMoreBtn = document.createElement('button');
+                loadMoreBtn.id = 'load-more-btn';
+                loadMoreBtn.className = 'btn';
+                loadMoreBtn.onclick = loadContacts;
+                loadMoreBtn.textContent = '📥 Load More (50)';
+                loadMoreBtn.style.margin = '20px auto';
+                loadMoreBtn.style.display = 'block';
+                container.parentElement.appendChild(loadMoreBtn);
+            }
+
+            loadMoreBtn.style.display = hasMore ? 'block' : 'none';
+        }
+
+        async function exportContacts() {
+            try {
+                const response = await api.sendCommand(deviceId, 'contacts_export', { format: 'csv' });
+
+                // Android returns: { success: true, data: { status: 'success', path: '...', count: N } }
+                if (response.success && response.data && response.data.status === 'success') {
+                    api.downloadFile(deviceId, response.data.path);
+                    api.showToast(`Exporting ${response.data.count} contacts...`, 'success');
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Export failed');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        loadContacts();
+    </script>
+</body>
+
+</html>
