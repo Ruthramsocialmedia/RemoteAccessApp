@@ -57,6 +57,21 @@ const wss = new WebSocketServer({
 
 console.log('[WebSocket] Server initialized');
 
+/**
+ * Safe send — prevents crash if socket is null or closed
+ */
+function safeSend(ws, data) {
+    try {
+        if (ws && ws.readyState === ws.OPEN) {
+            ws.send(typeof data === 'string' ? data : JSON.stringify(data));
+            return true;
+        }
+    } catch (e) {
+        console.error(`[WebSocket] safeSend failed: ${e.message}`);
+    }
+    return false;
+}
+
 // WebSocket connection handler
 wss.on('connection', (ws, req) => {
     console.log('[WebSocket] New connection from:', req.socket.remoteAddress);
@@ -96,16 +111,17 @@ wss.on('connection', (ws, req) => {
                 socketRegistry.register(deviceId, ws, data.metadata || {});
 
                 // Send welcome message
-                ws.send(JSON.stringify({
+                safeSend(ws, {
                     type: 'registered',
                     deviceId,
                     message: 'Successfully registered',
-                }));
+                });
 
                 // Start heartbeat monitoring
                 heartbeatInterval = setInterval(() => {
-                    if (ws.readyState === ws.OPEN) {
-                        ws.send(JSON.stringify({ type: 'ping' }));
+                    if (!safeSend(ws, { type: 'ping' })) {
+                        clearInterval(heartbeatInterval);
+                        console.log(`[WebSocket] Ping failed for ${deviceId}, clearing interval`);
                     }
                 }, config.websocket.pingInterval);
 
@@ -120,7 +136,7 @@ wss.on('connection', (ws, req) => {
                     });
 
                     // Send ACK
-                    ws.send(JSON.stringify({ type: 'heartbeat_ack' }));
+                    safeSend(ws, { type: 'heartbeat_ack' });
                 }
                 return;
             }
@@ -182,10 +198,10 @@ wss.on('connection', (ws, req) => {
             // Handle clean disconnection request
             if (data.type === 'disconnect' && deviceId) {
                 console.log(`[WebSocket] Device ${deviceId} requesting clean disconnect`);
-                socketRegistry.markOffline(deviceId);
+                socketRegistry.deleteDevice(deviceId);
 
                 // Send acknowledgment
-                ws.send(JSON.stringify({ type: 'disconnect_ack' }));
+                safeSend(ws, { type: 'disconnect_ack' });
                 return;
             }
 
