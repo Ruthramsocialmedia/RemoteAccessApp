@@ -451,9 +451,13 @@
         <!-- Category: Power Control -->
         <div class="category">
             <div class="category-title">Power Control</div>
-            <button class="cmd-btn primary" onclick="run('input keyevent 26')">💤 Sleep (Screen Off)</button>
-            <button class="cmd-btn danger" onclick="run('input keyevent 223')">🔒 Lock Screen</button>
-            <button class="cmd-btn danger" onclick="run('acc key POWER_DIALOG')">⚡ Power Menu</button>
+            <button class="cmd-btn primary" onclick="sendPowerCommand('power_sleep')">💤 Sleep (Screen Off)</button>
+            <button class="cmd-btn primary" onclick="sendPowerCommand('power_wakeup')">☀️ Wake Up</button>
+            <button class="cmd-btn danger" onclick="sendPowerCommand('power_lock')">🔒 Lock Screen</button>
+            <button class="cmd-btn danger" onclick="confirmPower('power_reboot', '🔄 Restart device?')">🔄
+                Restart</button>
+            <button class="cmd-btn danger" onclick="confirmPower('power_off', '⛔ Power off device?')">⛔ Power
+                Off</button>
         </div>
 
         <!-- Tools -->
@@ -555,6 +559,25 @@
         window.run = function (cmd) {
             executeCommand(cmd);
             closeSidebar();
+        }
+
+        // --- Power Control ---
+
+        async function sendPowerCommand(action) {
+            addOutput(`⚡ ${action}`, 'command');
+            closeSidebar();
+            try {
+                const result = await api.sendCommand(deviceId, action, {});
+                addOutput(result.message || `${action} executed`, 'info');
+            } catch (error) {
+                addOutput(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        window.confirmPower = function (action, msg) {
+            if (confirm(msg)) {
+                sendPowerCommand(action);
+            }
         }
 
         // --- Sidebar Toggle ---
