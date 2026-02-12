@@ -183,8 +183,6 @@ wss.on('connection', (ws, req) => {
 
             // Handle screen frames - forward to all browsers (Remote Control)
             if (data.type === 'screen_frame' && deviceId) {
-                // Log screen frame specifically for debugging
-                console.log(`[WebSocket] Forwarding screen frame from ${deviceId} (${message.length} bytes)`);
 
                 const msg = JSON.stringify(data);
                 wss.clients.forEach(client => {
@@ -208,6 +206,12 @@ wss.on('connection', (ws, req) => {
             // Handle command responses
             if (data.replyTo) {
                 commandDispatcher.handleResponse(data);
+                return;
+            }
+
+            // Handle device-pushed status updates (call_state, mic_state, etc.)
+            if (['call_state', 'mic_state', 'camera_state'].includes(data.type) && deviceId) {
+                socketRegistry.updateMetadata(deviceId, { [data.type]: data.state || data });
                 return;
             }
 

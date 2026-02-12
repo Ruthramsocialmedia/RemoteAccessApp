@@ -129,10 +129,10 @@
                 case STATES.IDLE:
                     show(btnStartPreview);
                     hide(btnStopPreview);
-                    show(btnStartRecord);
+                    disable(btnStartRecord); // Requires preview first
                     hide(btnStopRecord);
-                    show(btnPhoto);
-                    show(btnSwitch);
+                    disable(btnPhoto);  // Requires preview first
+                    disable(btnSwitch); // Requires preview first
 
                     hide(imgDisplay);
                     show(placeholder);
@@ -295,11 +295,12 @@
                 const message = JSON.parse(event.data);
 
                 if (message.type === 'camera_frame' && message.deviceId === deviceId) {
-                    if (currentState === STATES.PREVIEWING) {
+                    // Render frames during BOTH preview and recording
+                    if (currentState === STATES.PREVIEWING || currentState === STATES.RECORDING) {
                         if (imgDisplay.style.display === 'none') {
-                            document.getElementById('status-indicator').textContent = 'State: PREVIEWING (Receiving Frames)';
+                            const label = currentState === STATES.RECORDING ? 'RECORDING' : 'PREVIEWING';
+                            document.getElementById('status-indicator').textContent = `State: ${label} (Receiving Frames)`;
                             imgDisplay.style.display = 'block';
-                            placeholder.style.display = 'none';
                         }
                         imgDisplay.src = `data:image/jpeg;base64,${message.data}`;
                     }

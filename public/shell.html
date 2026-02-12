@@ -784,7 +784,9 @@
             appList.innerHTML = '<div class="app-loading">Loading apps...</div>';
             try {
                 const result = await api.sendCommand(deviceId, 'apps_list', {});
-                allApps = result.data || [];
+                // result = { success, data: { status, data: [...apps], count } }
+                const appData = result.data || result;
+                allApps = appData.data || [];
                 renderApps(allApps);
             } catch (error) {
                 appList.innerHTML = `<div class="app-loading">Error: ${error.message}</div>`;
