@@ -111,6 +111,17 @@
             box-shadow: 0 0 10px var(--accent-glow);
         }
 
+        .cmd-btn.danger {
+            border-color: rgba(255, 51, 51, 0.25);
+            color: var(--danger);
+        }
+
+        .cmd-btn.danger:hover {
+            background: rgba(255, 51, 51, 0.12);
+            border-color: rgba(255, 51, 51, 0.5);
+            box-shadow: 0 0 10px var(--danger-glow);
+        }
+
         /* ===== MAIN CONTENT ===== */
         .main-content {
             flex: 1;
@@ -435,6 +446,14 @@
             <button class="cmd-btn" onclick="run('ip addr show wlan0')">IP Address</button>
             <button class="cmd-btn" onclick="run('ping -c 3 google.com')">Ping Google</button>
             <button class="cmd-btn" onclick="run('netstat -an | grep LISTEN')">Open Ports</button>
+        </div>
+
+        <!-- Category: Power Control -->
+        <div class="category">
+            <div class="category-title">Power Control</div>
+            <button class="cmd-btn primary" onclick="run('input keyevent 26')">💤 Sleep (Screen Off)</button>
+            <button class="cmd-btn danger" onclick="run('input keyevent 223')">🔒 Lock Screen</button>
+            <button class="cmd-btn danger" onclick="run('acc key POWER_DIALOG')">⚡ Power Menu</button>
         </div>
 
         <!-- Tools -->
