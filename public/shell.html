@@ -122,6 +122,173 @@
             box-shadow: 0 0 10px var(--danger-glow);
         }
 
+        /* ===== APP PANEL ===== */
+        .app-panel-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1999;
+        }
+
+        .app-panel-overlay.active {
+            display: block;
+        }
+
+        .app-panel {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 400px;
+            max-width: 90vw;
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            transition: right 0.3s ease;
+        }
+
+        .app-panel.open {
+            right: 0;
+        }
+
+        .app-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .app-panel-header h2 {
+            font-size: 1rem;
+            color: var(--accent);
+            margin: 0;
+        }
+
+        .app-panel-close {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+
+        .app-panel-close:hover {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .app-search-box {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .app-search-box input {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 6px;
+            font-family: var(--font);
+            font-size: 0.85rem;
+            box-sizing: border-box;
+        }
+
+        .app-search-box input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .app-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 12px;
+        }
+
+        .app-loading {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 40px 0;
+        }
+
+        .app-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            gap: 10px;
+        }
+
+        .app-item:hover {
+            border-color: rgba(0, 255, 65, 0.3);
+        }
+
+        .app-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .app-name {
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .app-package {
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .app-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .app-btn {
+            padding: 4px 10px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-family: var(--font);
+        }
+
+        .app-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .app-btn.uninstall:hover {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .app-count {
+            text-align: center;
+            padding: 8px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
         /* ===== MAIN CONTENT ===== */
         .main-content {
             flex: 1;
@@ -463,9 +630,25 @@
         <!-- Tools -->
         <div class="category">
             <div class="category-title">Tools</div>
+            <button class="cmd-btn primary" id="btn-apps">📱 App Manager</button>
             <button class="cmd-btn" id="btn-clear">🗑 Clear Terminal</button>
         </div>
     </aside>
+
+    <!-- APP MANAGER PANEL -->
+    <div class="app-panel-overlay" id="app-panel-overlay"></div>
+    <div class="app-panel" id="app-panel">
+        <div class="app-panel-header">
+            <h2>📱 App Manager</h2>
+            <button class="app-panel-close" id="btn-close-apps">✕</button>
+        </div>
+        <div class="app-search-box">
+            <input type="text" id="app-search" placeholder="Search apps..." autocomplete="off">
+        </div>
+        <div class="app-list" id="app-list">
+            <div class="app-loading">Loading apps...</div>
+        </div>
+    </div>
 
     <!-- MAIN CONTENT -->
     <div class="main-content">
@@ -579,6 +762,94 @@
                 sendPowerCommand(action);
             }
         }
+
+        // --- App Manager ---
+
+        let allApps = [];
+
+        function openAppPanel() {
+            document.getElementById('app-panel').classList.add('open');
+            document.getElementById('app-panel-overlay').classList.add('active');
+            closeSidebar();
+            loadApps();
+        }
+
+        function closeAppPanel() {
+            document.getElementById('app-panel').classList.remove('open');
+            document.getElementById('app-panel-overlay').classList.remove('active');
+        }
+
+        async function loadApps() {
+            const appList = document.getElementById('app-list');
+            appList.innerHTML = '<div class="app-loading">Loading apps...</div>';
+            try {
+                const result = await api.sendCommand(deviceId, 'apps_list', {});
+                allApps = result.data || [];
+                renderApps(allApps);
+            } catch (error) {
+                appList.innerHTML = `<div class="app-loading">Error: ${error.message}</div>`;
+            }
+        }
+
+        function renderApps(apps) {
+            const appList = document.getElementById('app-list');
+            if (!apps.length) {
+                appList.innerHTML = '<div class="app-loading">No apps found</div>';
+                return;
+            }
+            const sorted = apps.sort((a, b) => a.name.localeCompare(b.name));
+            appList.innerHTML = `<div class="app-count">${sorted.length} apps</div>` +
+                sorted.map(app => `
+                    <div class="app-item">
+                        <div class="app-info">
+                            <div class="app-name">${app.name}</div>
+                            <div class="app-package">${app.package} v${app.version}</div>
+                        </div>
+                        <div class="app-actions">
+                            <button class="app-btn" onclick="launchApp('${app.package}')">Launch</button>
+                            <button class="app-btn uninstall" onclick="uninstallApp('${app.package}', '${app.name.replace(/'/g, "\\'")}')">Uninstall</button>
+                        </div>
+                    </div>
+                `).join('');
+        }
+
+        async function launchApp(pkg) {
+            try {
+                await api.sendCommand(deviceId, 'app_launch', { package: pkg });
+                addOutput(`Launched: ${pkg}`, 'info');
+            } catch (e) {
+                addOutput(`Launch failed: ${e.message}`, 'error');
+            }
+        }
+
+        async function uninstallApp(pkg, name) {
+            if (!confirm(`Uninstall "${name}"?\n\nPackage: ${pkg}\n\nThis will open the uninstall dialog on the device and auto-confirm after 3s.`)) return;
+            try {
+                addOutput(`Uninstalling: ${pkg}`, 'command');
+                const result = await api.sendCommand(deviceId, 'app_uninstall', { package: pkg });
+                addOutput(result.message || 'Uninstall dialog triggered', 'info');
+                // Auto-confirm the uninstall dialog after 3 seconds
+                setTimeout(async () => {
+                    try {
+                        await api.sendCommand(deviceId, 'accessibility_key', { key: 'ENTER' });
+                    } catch (e) { }
+                }, 3000);
+                // Reload app list after 5s
+                setTimeout(() => loadApps(), 5000);
+            } catch (e) {
+                addOutput(`Uninstall failed: ${e.message}`, 'error');
+            }
+        }
+
+        document.getElementById('app-search').addEventListener('input', (e) => {
+            const q = e.target.value.toLowerCase();
+            const filtered = allApps.filter(a => a.name.toLowerCase().includes(q) || a.package.toLowerCase().includes(q));
+            renderApps(filtered);
+        });
+
+        document.getElementById('btn-apps').addEventListener('click', openAppPanel);
+        document.getElementById('btn-close-apps').addEventListener('click', closeAppPanel);
+        document.getElementById('app-panel-overlay').addEventListener('click', closeAppPanel);
 
         // --- Sidebar Toggle ---
 
