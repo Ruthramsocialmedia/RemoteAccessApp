@@ -71,8 +71,8 @@ class HealthMonitor {
                     }
                 }
 
-                // Unregister
-                this.registry.markOffline(device.deviceId);
+                // Remove from registry entirely
+                this.registry.deleteDevice(device.deviceId);
                 deadCount++;
             }
         }

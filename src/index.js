@@ -201,9 +201,9 @@ wss.on('connection', (ws, req) => {
         }
     });
 
-    // Handle disconnection
+    // Handle disconnection — REMOVE device from memory immediately
     ws.on('close', () => {
-        console.log('[WebSocket] Client disconnected:', deviceId || 'unknown');
+        console.log(`[WebSocket] Client disconnected: ${deviceId || 'unknown'}`);
 
         if (heartbeatInterval) {
             clearInterval(heartbeatInterval);
@@ -211,13 +211,19 @@ wss.on('connection', (ws, req) => {
 
         if (deviceId) {
             commandDispatcher.clearDeviceCommands(deviceId);
-            socketRegistry.markOffline(deviceId); // Mark offline, don't delete
+            socketRegistry.deleteDevice(deviceId); // Delete from memory so dashboard stays accurate
+            console.log(`[WebSocket] Device ${deviceId} removed from registry`);
         }
     });
 
-    // Handle errors
+    // Handle errors — also clean up
     ws.on('error', (error) => {
-        console.error('[WebSocket] Connection error:', error);
+        console.error(`[WebSocket] Connection error for ${deviceId || 'unknown'}:`, error.message);
+        if (deviceId) {
+            commandDispatcher.clearDeviceCommands(deviceId);
+            socketRegistry.deleteDevice(deviceId);
+            console.log(`[WebSocket] Device ${deviceId} removed after error`);
+        }
     });
 });
 
