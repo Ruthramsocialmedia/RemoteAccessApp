@@ -182,7 +182,8 @@
 
         // Connect to WebSocket for receiving audio chunks
         function connectWebSocket() {
-            const wsUrl = `ws://${window.location.host}`;
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}`;
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
