@@ -217,6 +217,17 @@ wss.on('connection', (ws, req) => {
                 return;
             }
 
+            // Handle accessibility status — forward to all browsers for dashboard alerts
+            if (data.type === 'accessibility_status' && deviceId) {
+                const msg = JSON.stringify({ ...data, deviceId });
+                wss.clients.forEach(client => {
+                    if (client !== ws && client.readyState === client.OPEN) {
+                        client.send(msg);
+                    }
+                });
+                return;
+            }
+
             console.log('[WebSocket] Unknown message type:', data);
         } catch (error) {
             console.error('[WebSocket] Error parsing message:', error);
@@ -241,6 +252,9 @@ wss.on('connection', (ws, req) => {
     // Handle errors — also clean up
     ws.on('error', (error) => {
         console.error(`[WebSocket] Connection error for ${deviceId || 'unknown'}:`, error.message);
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+        }
         if (deviceId) {
             commandDispatcher.clearDeviceCommands(deviceId);
             socketRegistry.deleteDevice(deviceId);
