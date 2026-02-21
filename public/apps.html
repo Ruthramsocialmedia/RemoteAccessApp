@@ -1,0 +1,128 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Management - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+</head>
+
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">&lt;-- Back to Dashboard</a>
+        <header>
+            <h1>Installed Applications <span class="count-badge" id="app-count" style="display:none">0</span></h1>
+            <p>// package manager</p>
+        </header>
+
+        <!-- Search bar -->
+        <div class="search-bar">
+            <input type="search" id="app-search" placeholder="Search apps by name or package..." oninput="filterApps()">
+        </div>
+
+        <div id="app-list" class="app-list loading">Scanning packages...</div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        let allApps = [];
+
+        async function loadApps() {
+            try {
+                const response = await api.sendCommand(deviceId, 'apps_list');
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    allApps = response.data.data || [];
+                    document.getElementById('app-count').style.display = 'inline-block';
+                    document.getElementById('app-count').textContent = allApps.length;
+                    renderApps(allApps);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to load apps');
+                }
+            } catch (error) {
+                document.getElementById('app-list').innerHTML = `<p style="color:var(--danger)">Error: ${error.message}</p>`;
+            }
+        }
+
+        function filterApps() {
+            const query = document.getElementById('app-search').value.toLowerCase().trim();
+            if (!query) {
+                renderApps(allApps);
+                return;
+            }
+            const filtered = allApps.filter(app =>
+                app.name.toLowerCase().includes(query) ||
+                app.package.toLowerCase().includes(query)
+            );
+            renderApps(filtered);
+        }
+
+        function renderApps(apps) {
+            const container = document.getElementById('app-list');
+            container.className = 'app-list';
+
+            if (apps.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h2>No Apps Found</h2>
+                        <p>${allApps.length > 0 ? 'No apps match your search.' : 'No user apps found on device.'}</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = apps.map(app => `
+                <div class="app-item">
+                    <div class="app-info">
+                        <h3>${app.name}</h3>
+                        <p>${app.package} (v${app.version})</p>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-launch" onclick="launchApp('${app.package}')">LAUNCH</button>
+                        <button class="btn btn-uninstall" onclick="uninstallApp('${app.package}')">UNINSTALL</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function launchApp(packageName) {
+            try {
+                await api.sendCommand(deviceId, 'app_launch', { package: packageName });
+                api.showToast('App launched!', 'success');
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        async function uninstallApp(packageName) {
+            if (!confirm(`Are you sure you want to uninstall ${packageName}? This will show a system prompt on the device.`)) return;
+
+            try {
+                await api.sendCommand(deviceId, 'app_uninstall', { package: packageName });
+                api.showToast('Uninstall prompt sent to device', 'info');
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        loadApps();
+    </script>
+
+  <!-- Disclaimer -->
+  <div class="container">
+    <div class="disclaimer">
+      <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+      <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely manage their own devices. Installing or using this application on a device without the owner's explicit consent is illegal and unethical. The developers assume no liability for misuse. By using this application, you agree that you are solely responsible for how it is used.</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p class="footer-created">Created by</p>
+    <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+    <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+  </footer>
+</body>
+
+</html>

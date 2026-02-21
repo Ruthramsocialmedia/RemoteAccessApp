@@ -1,0 +1,1651 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Remote Control - Scrcpy Web</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+    <style>
+        /* ===== LAYOUT OVERRIDES ===== */
+        body {
+            overflow: hidden;
+            padding: 0;
+            margin: 0;
+            height: 100vh;
+        }
+
+        body::before {
+            display: none;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        /* ===== SCREEN AREA ===== */
+        .screen-area {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+            background-image:
+                radial-gradient(ellipse at center, rgba(0, 255, 65, 0.04) 0%, transparent 70%),
+                linear-gradient(rgba(0, 255, 65, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 65, 0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
+            user-select: none;
+        }
+
+        .screen-wrapper {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            max-height: 100%;
+            border: 1px solid rgba(0, 255, 65, 0.15);
+            box-shadow:
+                0 0 40px rgba(0, 0, 0, 0.9),
+                0 0 80px rgba(0, 0, 0, 0.4),
+                inset 0 0 30px rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        #screen-display {
+            max-width: 100%;
+            max-height: calc(100vh - 20px);
+            border-radius: 6px;
+            display: none;
+            cursor: crosshair;
+            image-rendering: auto;
+        }
+
+        /* ===== PLACEHOLDER ===== */
+        .placeholder {
+            text-align: center;
+            color: var(--text-secondary);
+            border: 1px dashed var(--border);
+            padding: 40px 30px;
+            border-radius: 12px;
+            background: rgba(13, 17, 23, 0.7);
+            max-width: 380px;
+            backdrop-filter: blur(8px);
+        }
+
+        .placeholder .ph-icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+            display: block;
+            opacity: 0.5;
+            animation: pulse-icon 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-icon {
+
+            0%,
+            100% {
+                opacity: 0.4;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.7;
+                transform: scale(1.05);
+            }
+        }
+
+        .placeholder h2 {
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            font-size: 1.1rem;
+        }
+
+        .placeholder p {
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        /* ===== CURSOR OVERLAY ===== */
+        .cursor-overlay {
+            position: absolute;
+            pointer-events: none;
+            z-index: 10;
+            display: none;
+            top: 0;
+            left: 0;
+        }
+
+        .cursor-crosshair {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            transition: left 0.06s linear, top 0.06s linear;
+        }
+
+        .cursor-crosshair::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 26px;
+            height: 26px;
+            border: 2px solid var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 12px var(--accent-glow), inset 0 0 6px rgba(0, 255, 65, 0.1);
+            transition: all 0.1s ease;
+        }
+
+        .cursor-crosshair::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--accent);
+        }
+
+        .cursor-line-h,
+        .cursor-line-v {
+            position: absolute;
+            background: rgba(0, 255, 65, 0.12);
+        }
+
+        .cursor-line-h {
+            width: 100%;
+            height: 1px;
+            top: 50%;
+            left: 0;
+        }
+
+        .cursor-line-v {
+            width: 1px;
+            height: 100%;
+            left: 50%;
+            top: 0;
+        }
+
+        .cursor-crosshair.tap-flash::before {
+            width: 36px;
+            height: 36px;
+            border-color: #fff;
+            background: rgba(0, 255, 65, 0.25);
+            box-shadow: 0 0 25px rgba(0, 255, 65, 0.5);
+        }
+
+        .cursor-coords {
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            color: rgba(0, 255, 65, 0.6);
+            white-space: nowrap;
+            letter-spacing: 0.5px;
+        }
+
+        /* ===== COOLDOWN OVERLAY ===== */
+        .cooldown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.12);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            z-index: 5;
+            border-radius: 6px;
+        }
+
+        .cooldown-overlay.active {
+            opacity: 1;
+        }
+
+        /* ===== TOUCH HINT ===== */
+        .touch-hint {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: var(--text-secondary);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 15;
+            border: 1px solid var(--border);
+            white-space: nowrap;
+            max-width: 90%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .touch-hint.visible {
+            opacity: 1;
+        }
+
+        /* ===== ACTION HUD ===== */
+        .action-hud {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 6px 18px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            z-index: 200;
+            backdrop-filter: blur(4px);
+            letter-spacing: 0.5px;
+        }
+
+        .action-hud.active {
+            opacity: 1;
+        }
+
+        /* ===== TAP RIPPLE ===== */
+        @keyframes tapRipple {
+            0% {
+                transform: scale(0.5);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 300px;
+            min-width: 300px;
+            background: var(--bg-panel);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            overflow-x: hidden;
+            z-index: 100;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        .sidebar-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-panel);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .sidebar-header h1 {
+            font-size: 0.95rem;
+            margin: 0;
+            color: var(--accent);
+            letter-spacing: 2px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #6e7681;
+            transition: all 0.3s;
+        }
+
+        .status-dot.connected {
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent-glow);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                box-shadow: 0 0 4px var(--accent-glow);
+            }
+
+            50% {
+                box-shadow: 0 0 12px rgba(0, 255, 65, 0.4);
+            }
+        }
+
+        /* ===== CONTROL SECTIONS ===== */
+        .ctrl-section {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .ctrl-section:last-child {
+            border-bottom: none;
+        }
+
+        .ctrl-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* ===== STREAM BUTTONS ===== */
+        .stream-btns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .s-btn {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+            transition: all 0.15s ease;
+            text-align: center;
+            font-family: inherit;
+            letter-spacing: 0.5px;
+        }
+
+        .s-btn:active:not(:disabled) {
+            transform: scale(0.97);
+        }
+
+        .s-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        .s-btn.start {
+            background: rgba(0, 255, 65, 0.12);
+            color: var(--accent);
+            border-color: rgba(0, 255, 65, 0.25);
+        }
+
+        .s-btn.start:hover:not(:disabled) {
+            background: rgba(0, 255, 65, 0.2);
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .s-btn.stop {
+            background: rgba(255, 51, 51, 0.1);
+            color: var(--danger);
+            border-color: rgba(255, 51, 51, 0.2);
+        }
+
+        .s-btn.stop:hover:not(:disabled) {
+            background: rgba(255, 51, 51, 0.2);
+            border-color: var(--danger);
+            box-shadow: 0 0 15px var(--danger-glow);
+        }
+
+        .res-info {
+            display: none;
+            margin-top: 8px;
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        /* ===== MODE TOGGLE ===== */
+        .mode-toggle {
+            display: flex;
+            gap: 2px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            padding: 3px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 7px 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            font-family: inherit;
+            letter-spacing: 0.5px;
+        }
+
+        .mode-btn.active {
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .mode-btn:hover:not(.active) {
+            background: rgba(0, 255, 65, 0.08);
+            color: var(--text-primary);
+        }
+
+        /* ===== D-PAD ===== */
+        .dpad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            max-width: 200px;
+            margin: 0 auto;
+        }
+
+        .dpad-btn {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.1s;
+            font-family: inherit;
+            min-height: 44px;
+        }
+
+        .dpad-btn:hover {
+            border-color: var(--accent);
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        .dpad-btn:active {
+            transform: scale(0.92);
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        .dpad-btn.center-btn {
+            background: var(--accent);
+            color: #000;
+            font-weight: bold;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            border-color: var(--accent);
+        }
+
+        .dpad-btn.center-btn:hover {
+            box-shadow: 0 0 18px var(--accent-glow);
+        }
+
+        .dpad-btn.center-btn:active {
+            background: #00cc33;
+        }
+
+        .dpad-empty {
+            /* Empty cells in D-pad grid */
+        }
+
+        .dpad-btn.cooldown {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        /* ===== SPEED CONTROL ===== */
+        .speed-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .speed-row input[type="range"] {
+            flex: 1;
+            height: 4px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .speed-row .speed-val {
+            color: var(--accent);
+            min-width: 32px;
+            text-align: right;
+            font-size: 0.75rem;
+        }
+
+        /* ===== NAV BUTTONS ===== */
+        .nav-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .nav-btn {
+            padding: 10px 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-family: inherit;
+            transition: all 0.15s;
+            text-align: center;
+            letter-spacing: 0.5px;
+            min-height: 44px;
+        }
+
+        .nav-btn:hover {
+            border-color: var(--accent);
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        .nav-btn:active {
+            transform: scale(0.96);
+            background: rgba(0, 255, 65, 0.1);
+        }
+
+        .nav-btn.cooldown {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        /* ===== TEXT INPUT ===== */
+        .text-input-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .text-input-row input {
+            flex: 1;
+            padding: 9px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.8rem;
+            transition: border-color 0.2s;
+        }
+
+        .text-input-row input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        .text-input-row input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .text-input-row button {
+            padding: 9px 14px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--accent);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .text-input-row button:hover {
+            border-color: var(--accent);
+            background: rgba(0, 255, 65, 0.08);
+        }
+
+        .text-input-row button:active {
+            transform: scale(0.96);
+        }
+
+        /* ===== TOOL BUTTONS ===== */
+        .tool-btn {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.8rem;
+            transition: all 0.15s;
+            text-align: center;
+            margin-top: 6px;
+            min-height: 44px;
+        }
+
+        .tool-btn:hover {
+            border-color: var(--accent);
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        .tool-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* ===== BACK LINK ===== */
+        .back-link {
+            display: block;
+            padding: 12px 16px;
+            text-align: center;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.75rem;
+            border-top: 1px solid var(--border);
+            transition: all 0.2s;
+            letter-spacing: 1px;
+            margin-top: auto;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+            background: rgba(0, 255, 65, 0.03);
+        }
+
+        /* ===== RESPONSIVE: TABLET ===== */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 280px;
+                min-width: 280px;
+            }
+
+            .dpad-grid {
+                max-width: 180px;
+            }
+        }
+
+        /* ===== RESPONSIVE: MOBILE ===== */
+        @media (max-width: 768px) {
+            .app-container {
+                flex-direction: column;
+            }
+
+            .screen-area {
+                flex: none;
+                height: 55vh;
+                width: 100%;
+            }
+
+            #screen-display {
+                max-height: calc(55vh - 10px);
+            }
+
+            .sidebar {
+                width: 100%;
+                min-width: 0;
+                height: 45vh;
+                border-left: none;
+                border-top: 1px solid var(--border);
+            }
+
+            .dpad-grid {
+                max-width: 170px;
+            }
+
+            .touch-hint {
+                font-size: 0.6rem;
+                bottom: 6px;
+            }
+        }
+
+        /* ===== RESPONSIVE: SMALL MOBILE ===== */
+        @media (max-width: 480px) {
+            .screen-area {
+                height: 45vh;
+            }
+
+            #screen-display {
+                max-height: calc(45vh - 10px);
+            }
+
+            .sidebar {
+                height: 55vh;
+            }
+
+            .sidebar-header h1 {
+                font-size: 0.8rem;
+            }
+
+            .ctrl-section {
+                padding: 10px 12px;
+            }
+
+            .dpad-grid {
+                max-width: 150px;
+                gap: 4px;
+                padding: 6px;
+            }
+
+            .nav-grid {
+                gap: 4px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Screen Area -->
+        <div class="screen-area" id="screen-container">
+            <div id="action-indicator" class="action-hud"></div>
+            <div id="placeholder" class="placeholder">
+                <span class="ph-icon">📡</span>
+                <h2>Ready to Connect</h2>
+                <p>Click <strong>START</strong> to begin streaming.</p>
+                <p style="opacity: 0.5; margin-top: 4px;">Ensure phone screen is ON</p>
+            </div>
+            <div class="screen-wrapper" id="screen-wrapper">
+                <img id="screen-display" draggable="false" />
+                <!-- Cursor overlay -->
+                <div class="cursor-overlay" id="cursor-overlay">
+                    <div class="cursor-line-h"></div>
+                    <div class="cursor-line-v"></div>
+                    <div class="cursor-crosshair" id="cursor-crosshair">
+                        <span class="cursor-coords" id="cursor-coords"></span>
+                    </div>
+                </div>
+                <div class="cooldown-overlay" id="cooldown-overlay"></div>
+            </div>
+            <div class="touch-hint visible" id="touch-hint">D-Pad moves cursor • Select to tap • Arrow keys work too
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>⌘ REMOTE</h1>
+                <div class="status-indicator">
+                    <div class="status-dot" id="status-dot" title="Disconnected"></div>
+                </div>
+            </div>
+
+            <!-- Stream Control -->
+            <div class="ctrl-section">
+                <div class="ctrl-label">📡 STREAM</div>
+                <div class="stream-btns">
+                    <button class="s-btn start" id="btn-start">▶ START</button>
+                    <button class="s-btn stop" id="btn-stop" disabled>■ STOP</button>
+                </div>
+                <div class="res-info" id="resolution-info">
+                    <span id="res-label">--</span>
+                </div>
+            </div>
+
+            <!-- D-Pad Control -->
+            <div class="ctrl-section">
+                <div class="ctrl-label">🎮 CONTROL</div>
+
+                <!-- Mode Toggle -->
+                <div class="mode-toggle">
+                    <button class="mode-btn active" id="mode-cursor" onclick="setMode('cursor')">🎯 CURSOR</button>
+                    <button class="mode-btn" id="mode-gesture" onclick="setMode('gesture')">👆 SWIPE</button>
+                </div>
+
+                <div class="dpad-grid">
+                    <div class="dpad-empty"></div>
+                    <button class="dpad-btn action-btn" onclick="dpadAction('up')">▲</button>
+                    <div class="dpad-empty"></div>
+
+                    <button class="dpad-btn action-btn" onclick="dpadAction('left')">◀</button>
+                    <button class="dpad-btn center-btn action-btn" onclick="selectAction()">OK</button>
+                    <button class="dpad-btn action-btn" onclick="dpadAction('right')">▶</button>
+
+                    <div class="dpad-empty"></div>
+                    <button class="dpad-btn action-btn" onclick="dpadAction('down')">▼</button>
+                    <div class="dpad-empty"></div>
+                </div>
+
+                <div class="speed-row">
+                    <span>SPEED</span>
+                    <input type="range" id="cursor-speed" min="10" max="100" value="40"
+                        oninput="updateCursorSpeed(this.value)">
+                    <span class="speed-val" id="speed-label">40px</span>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="ctrl-section">
+                <div class="ctrl-label">🧭 NAVIGATION</div>
+                <div class="nav-grid">
+                    <button class="nav-btn action-btn" onclick="sendAction('key', 'BACK')">◀ Back</button>
+                    <button class="nav-btn action-btn" onclick="sendAction('key', 'HOME')">⌂ Home</button>
+                    <button class="nav-btn action-btn" onclick="sendAction('key', 'RECENTS')">▤ Apps</button>
+                    <button class="nav-btn action-btn" onclick="sendAction('key', 'NOTIFICATIONS')">🔔 Notif</button>
+                </div>
+            </div>
+
+            <!-- Text & Tools -->
+            <div class="ctrl-section">
+                <div class="ctrl-label">⌨ TEXT INPUT</div>
+                <div class="text-input-row">
+                    <input type="text" id="TextInput" placeholder="Type text..." autocomplete="off">
+                    <button class="action-btn" onclick="sendText()">SEND</button>
+                </div>
+                <button class="tool-btn" id="btn-screenshot">📸 Screenshot</button>
+            </div>
+
+            <a href="index.html" class="back-link">← DASHBOARD</a>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+
+        // Elements
+        const imgDisplay = document.getElementById('screen-display');
+        const placeholder = document.getElementById('placeholder');
+        const statusDot = document.getElementById('status-dot');
+        const btnStart = document.getElementById('btn-start');
+        const btnStop = document.getElementById('btn-stop');
+        const btnScreenshot = document.getElementById('btn-screenshot');
+        const cooldownOverlay = document.getElementById('cooldown-overlay');
+        const touchHint = document.getElementById('touch-hint');
+        const actionIndicator = document.getElementById('action-indicator');
+        const cursorOverlay = document.getElementById('cursor-overlay');
+        const cursorCrosshair = document.getElementById('cursor-crosshair');
+        const cursorCoords = document.getElementById('cursor-coords');
+        const screenWrapper = document.getElementById('screen-wrapper');
+
+        // State
+        let isStreaming = false;
+        let ws = null;
+        let originalResolution = null;  // Will be set from device response or first frame
+        let resolutionDetected = false;
+
+        // Mode: 'cursor' or 'gesture'
+        let controlMode = 'cursor';
+
+        // Cursor position (in DEVICE coordinates)
+        let cursorX = 540;
+        let cursorY = 1200;
+        let cursorStep = 40;
+
+        // Throttle
+        let actionInProgress = false;
+        const COOLDOWN_MS = 400;
+        let cooldownTimer = null;
+
+
+        if (!deviceId) window.location.href = 'index.html';
+
+        // ========== CURSOR SYSTEM ==========
+
+        function updateCursorDisplay() {
+            if (!isStreaming) return;
+
+            const rect = imgDisplay.getBoundingClientRect();
+            const wrapperRect = screenWrapper.getBoundingClientRect();
+
+            // Scale from device coords to displayed coords
+            if (!originalResolution) return;
+            const scaleX = rect.width / originalResolution.width;
+            const scaleY = rect.height / originalResolution.height;
+
+            // Position relative to wrapper
+            const displayX = (rect.left - wrapperRect.left) + cursorX * scaleX;
+            const displayY = (rect.top - wrapperRect.top) + cursorY * scaleY;
+
+            cursorCrosshair.style.left = displayX + 'px';
+            cursorCrosshair.style.top = displayY + 'px';
+
+            // Update coord display
+            cursorCoords.textContent = `${Math.round(cursorX)}, ${Math.round(cursorY)}`;
+        }
+
+        function moveCursor(dx, dy) {
+            if (!originalResolution) return;
+            cursorX = Math.max(0, Math.min(originalResolution.width, cursorX + dx));
+            cursorY = Math.max(0, Math.min(originalResolution.height, cursorY + dy));
+            updateCursorDisplay();
+        }
+
+        function showCursor() {
+            cursorOverlay.style.display = 'block';
+            // Size overlay to match image
+            const rect = imgDisplay.getBoundingClientRect();
+            const wrapperRect = screenWrapper.getBoundingClientRect();
+            cursorOverlay.style.left = (rect.left - wrapperRect.left) + 'px';
+            cursorOverlay.style.top = (rect.top - wrapperRect.top) + 'px';
+            cursorOverlay.style.width = rect.width + 'px';
+            cursorOverlay.style.height = rect.height + 'px';
+            updateCursorDisplay();
+        }
+
+        function hideCursor() {
+            cursorOverlay.style.display = 'none';
+        }
+
+        function updateCursorSpeed(val) {
+            cursorStep = parseInt(val);
+            document.getElementById('speed-label').textContent = val + 'px';
+        }
+
+        function updateResolutionDisplay(w, h, source) {
+            const resInfo = document.getElementById('resolution-info');
+            const resLabel = document.getElementById('res-label');
+            resInfo.style.display = 'block';
+            const sourceIcon = source === 'device' ? '✅' : (source === 'frame' ? '🔍' : '📡');
+            resLabel.textContent = `${w} × ${h} ${sourceIcon}`;
+            resInfo.title = `Device resolution: ${w}×${h} (detected from ${source})`;
+        }
+
+        // ========== MODE SYSTEM ==========
+
+        function setMode(mode) {
+            controlMode = mode;
+            document.getElementById('mode-cursor').classList.toggle('active', mode === 'cursor');
+            document.getElementById('mode-gesture').classList.toggle('active', mode === 'gesture');
+
+            if (mode === 'cursor') {
+                actionIndicator.textContent = '🎯 Cursor Mode — Move cursor, then Select';
+                if (isStreaming) showCursor();
+                touchHint.textContent = 'Use D-Pad to move cursor • Select to tap • Arrow keys work too';
+            } else {
+                actionIndicator.textContent = '👆 Gesture Mode — Swipe/scroll directly';
+                hideCursor();
+                touchHint.textContent = 'D-Pad scrolls • Select confirms focused item • Swipe on screen';
+            }
+        }
+
+        // ========== D-PAD ACTION (mode-dependent) ==========
+
+        function dpadAction(direction) {
+            if (!isStreaming) return;
+
+            if (controlMode === 'cursor') {
+                // Move cursor locally — NO network call, instant
+                switch (direction) {
+                    case 'up': moveCursor(0, -cursorStep); break;
+                    case 'down': moveCursor(0, cursorStep); break;
+                    case 'left': moveCursor(-cursorStep, 0); break;
+                    case 'right': moveCursor(cursorStep, 0); break;
+                }
+                showActionIndicator(`🎯 Cursor: ${Math.round(cursorX)}, ${Math.round(cursorY)}`);
+            } else {
+                // Gesture mode — send swipe to Android
+                sendAction('accessibility_swipe', { direction: direction });
+            }
+        }
+
+        function swipeAction(direction) {
+            if (!isStreaming) return;
+            // Always send swipe, regardless of mode
+            sendAction('accessibility_swipe', { direction: direction });
+        }
+
+        // ========== SELECT ACTION (mode-dependent) ==========
+
+        function selectAction() {
+            if (!isStreaming) {
+                console.log('[Select] Not streaming, ignoring');
+                return;
+            }
+
+            console.log(`[Select] Mode: ${controlMode}, cursorX: ${Math.round(cursorX)}, cursorY: ${Math.round(cursorY)}, actionInProgress: ${actionInProgress}`);
+
+            if (controlMode === 'cursor') {
+                // Tap at cursor position — sends accessibility_tap
+                const tapCoords = { x: Math.round(cursorX), y: Math.round(cursorY) };
+                console.log(`[Select/Cursor] Sending TAP at (${tapCoords.x}, ${tapCoords.y})`);
+                sendAction('tap', tapCoords);
+
+                // Visual flash
+                cursorCrosshair.classList.add('tap-flash');
+                setTimeout(() => cursorCrosshair.classList.remove('tap-flash'), 300);
+            } else {
+                // Gesture mode — press Enter on focused element
+                console.log('[Select/Gesture] Sending ENTER key');
+                sendAction('key', 'ENTER');
+            }
+        }
+
+        // ========== THROTTLED ACTION SYSTEM ==========
+
+        async function sendCommand(action, payload, timeoutMs = 8000) {
+            const url = `/api/command/${deviceId}`;
+            const body = JSON.stringify({ action, payload });
+            console.log(`%c[sendCommand] POST ${url} action=${action}`, 'color: lime', payload);
+
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body,
+                    signal: controller.signal
+                });
+                clearTimeout(timer);
+
+                const data = await response.json();
+                console.log(`%c[sendCommand] Response:`, 'color: lime', response.status, data);
+
+                if (!response.ok) {
+                    throw new Error(data.error || `HTTP ${response.status}`);
+                }
+                return data;
+            } catch (e) {
+                clearTimeout(timer);
+                if (e.name === 'AbortError') {
+                    throw new Error(`Timeout after ${timeoutMs}ms`);
+                }
+                throw e;
+            }
+        }
+
+        async function sendAction(type, value) {
+            console.log(`%c[sendAction] type=${type}, mode=${controlMode}, deviceId=${deviceId}, actionInProgress=${actionInProgress}`, 'color: cyan; font-weight: bold');
+            console.log(`[sendAction] value:`, value);
+
+            if (!isStreaming) {
+                console.warn('[sendAction] BLOCKED: Not streaming');
+                return;
+            }
+            if (actionInProgress) {
+                console.warn('[sendAction] BLOCKED: actionInProgress=true (cooldown)');
+                return;
+            }
+
+            actionInProgress = true;
+            setActionButtons(false);
+            cooldownOverlay.classList.add('active');
+
+            try {
+                switch (type) {
+                    case 'swipe':
+                        await sendCommand('accessibility_swipe', { direction: value });
+                        showActionIndicator(`✓ Swipe ${value}`);
+                        break;
+                    case 'key':
+                        await sendCommand('accessibility_key', { key: value });
+                        showActionIndicator(`✓ ${value}`);
+                        break;
+                    case 'tap':
+                        // Try accessibility_tap first, fallback to shell input tap
+                        try {
+                            await sendCommand('accessibility_tap', value, 5000);
+                            showActionIndicator(`✓ Tap (${value.x}, ${value.y})`);
+                        } catch (tapError) {
+                            console.warn(`%c[sendAction] accessibility_tap failed: ${tapError.message}, trying shell fallback...`, 'color: orange');
+                            try {
+                                await sendCommand('shell_exec', { command: `input tap ${value.x} ${value.y}` }, 5000);
+                                showActionIndicator(`✓ Tap (${value.x}, ${value.y}) [shell]`);
+                            } catch (shellError) {
+                                console.error(`%c[sendAction] Shell fallback also failed:`, 'color: red', shellError.message);
+                                throw shellError;
+                            }
+                        }
+                        break;
+                    case 'swipe_coords':
+                        await sendCommand('accessibility_swipe', value);
+                        showActionIndicator('✓ Swipe');
+                        break;
+                    case 'accessibility_swipe':
+                        await sendCommand('accessibility_swipe', value);
+                        showActionIndicator('✓ Swipe');
+                        break;
+                    default:
+                        console.error(`[sendAction] Unknown type: ${type}`);
+                        return;
+                }
+            } catch (e) {
+                console.error('%c[sendAction] ERROR:', 'color: red; font-weight: bold', e.message);
+                showActionIndicator('✗ ' + e.message);
+            }
+
+            cooldownTimer = setTimeout(() => {
+                actionInProgress = false;
+                setActionButtons(true);
+                cooldownOverlay.classList.remove('active');
+            }, COOLDOWN_MS);
+        }
+
+        function setActionButtons(enabled) {
+            document.querySelectorAll('.action-btn').forEach(btn => {
+                btn.classList.toggle('cooldown', !enabled);
+            });
+        }
+
+        function showActionIndicator(text) {
+            actionIndicator.textContent = text;
+            actionIndicator.classList.add('active');
+            setTimeout(() => {
+                actionIndicator.classList.remove('active');
+                if (!actionInProgress) {
+                    actionIndicator.textContent = controlMode === 'cursor'
+                        ? '🎯 Cursor Mode — Move cursor, then Select'
+                        : '👆 Gesture Mode — Swipe/scroll directly';
+                }
+            }, 1500);
+        }
+
+        // ========== KEYBOARD ==========
+
+        document.addEventListener('keydown', (e) => {
+            if (!isStreaming) return;
+
+            if (document.activeElement.tagName === 'INPUT') {
+                if (e.key === 'Enter') sendText();
+                return;
+            }
+
+            switch (e.key) {
+                case 'Enter':
+                    e.preventDefault();
+                    selectAction();
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    dpadAction('up');
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    dpadAction('down');
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    dpadAction('left');
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    dpadAction('right');
+                    break;
+                case 'Escape':
+                case 'Backspace':
+                    e.preventDefault();
+                    sendAction('key', 'BACK');
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    sendAction('key', 'HOME');
+                    break;
+                case 'F3':
+                    e.preventDefault();
+                    sendAction('key', 'RECENTS');
+                    break;
+                case 'Tab':
+                    // Toggle mode
+                    e.preventDefault();
+                    setMode(controlMode === 'cursor' ? 'gesture' : 'cursor');
+                    break;
+            }
+        });
+
+        // ========== WEBSOCKET ==========
+
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+            ws.onopen = () => {
+                console.log('WS Connected');
+                ws.send(JSON.stringify({ type: 'identify', deviceId: 'browser' }));
+                statusDot.classList.add('connected');
+                statusDot.title = "Connected";
+            };
+
+            let frameCount = 0;
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+
+                    if (frameCount < 3) {
+                        console.log('[WS] Message:', msg.type);
+                    }
+
+                    if (msg.type === 'screen_frame') {
+                        frameCount++;
+                        imgDisplay.src = `data:image/jpeg;base64,${msg.data}`;
+                        isStreaming = true;
+
+                        // Auto-detect resolution from first frame if not already set
+                        if (!resolutionDetected) {
+                            imgDisplay.onload = function () {
+                                if (!resolutionDetected && imgDisplay.naturalWidth > 0) {
+                                    // Stream frames are half-size, so double for device coords
+                                    const fw = imgDisplay.naturalWidth * 2;
+                                    const fh = imgDisplay.naturalHeight * 2;
+                                    if (!originalResolution) {
+                                        originalResolution = { width: fw, height: fh };
+                                        cursorX = fw / 2;
+                                        cursorY = fh / 2;
+                                        updateResolutionDisplay(fw, fh, 'frame');
+                                        console.log(`%c[Resolution] Auto-detected from frame: ${fw}x${fh}`, 'color: orange; font-weight: bold');
+                                    }
+                                    resolutionDetected = true;
+                                    imgDisplay.onload = null;
+                                }
+                            };
+                        }
+
+                        if (imgDisplay.style.display !== 'block') {
+                            imgDisplay.style.display = 'block';
+                            placeholder.style.display = 'none';
+                            btnStop.disabled = false;
+                            btnStart.disabled = true;
+
+                            // Initialize cursor at center
+                            setTimeout(() => {
+                                if (controlMode === 'cursor') showCursor();
+                            }, 100);
+                        }
+                    } else if (msg.type === 'error') {
+                        api.showToast(`Device Error: ${msg.error}`, 'error');
+                        if (msg.error === 'waiting_for_consent') {
+                            api.showToast('Check phone for permission dialog!', 'warning');
+                        }
+                    }
+                } catch (e) {
+                    console.error('[WS] Parse error:', e);
+                }
+            };
+
+            ws.onclose = () => {
+                statusDot.classList.remove('connected');
+                statusDot.title = "Disconnected";
+                setTimeout(initWebSocket, 3000);
+            };
+        }
+
+        // ========== STREAM ==========
+
+        async function startStream() {
+            try {
+                btnStart.disabled = true;
+                btnStart.textContent = '⏳ ...';
+
+                const result = await api.sendCommand(deviceId, 'screen_stream_start');
+
+                if (result.deviceResolution || result.resolution) {
+                    // Use DEVICE resolution for cursor/tap coords (accessibility uses full screen coords)
+                    const resStr = result.deviceResolution || result.resolution;
+                    const [w, h] = resStr.split('x').map(Number);
+                    originalResolution = { width: w, height: h };
+                    resolutionDetected = true;
+                    // Reset cursor to center
+                    cursorX = w / 2;
+                    cursorY = h / 2;
+                    const source = result.deviceResolution ? 'device' : 'stream';
+                    updateResolutionDisplay(w, h, source);
+                    console.log(`%c[Resolution] Using device resolution: ${w}x${h}`, 'color: lime; font-weight: bold');
+                    if (result.deviceResolution && result.resolution) {
+                        console.log(`[Resolution] Stream: ${result.resolution}, Device: ${result.deviceResolution}`);
+                    }
+                }
+
+                if (result.status === 'started') {
+                    isStreaming = true;
+                    btnStop.disabled = false;
+                    btnStart.textContent = '▶ START';
+                    api.showToast('Stream started', 'success');
+                } else {
+                    throw new Error(result.error || 'Unknown error');
+                }
+            } catch (e) {
+                btnStart.disabled = false;
+                btnStart.textContent = '▶ START';
+                api.showToast(e.message, 'error');
+            }
+        }
+
+        async function stopStream() {
+            try {
+                await api.sendCommand(deviceId, 'screen_stream_stop');
+            } catch (e) { console.error(e); }
+            finally {
+                isStreaming = false;
+                actionInProgress = false;
+                resolutionDetected = false;
+                originalResolution = null;
+                if (cooldownTimer) clearTimeout(cooldownTimer);
+                setActionButtons(true);
+                cooldownOverlay.classList.remove('active');
+                btnStart.disabled = false;
+                btnStop.disabled = true;
+                imgDisplay.style.display = 'none';
+                placeholder.style.display = 'block';
+                hideCursor();
+                document.getElementById('resolution-info').style.display = 'none';
+                api.showToast('Stream stopped', 'info');
+            }
+        }
+
+        // ========== TEXT INPUT ==========
+
+        async function sendText() {
+            const input = document.getElementById('TextInput');
+            const text = input.value;
+            if (!text || actionInProgress) return;
+
+            actionInProgress = true;
+            setActionButtons(false);
+
+            try {
+                await api.sendCommand(deviceId, 'accessibility_text', { text });
+                input.value = '';
+                showActionIndicator('✓ Text sent');
+                api.showToast('Text sent', 'success');
+            } catch (e) {
+                showActionIndicator('✗ Text failed');
+                api.showToast('Failed to send text', 'error');
+            }
+
+            setTimeout(() => {
+                actionInProgress = false;
+                setActionButtons(true);
+            }, COOLDOWN_MS);
+        }
+
+        // ========== SCREENSHOT ==========
+
+        async function takeScreenshot() {
+            try {
+                const result = await api.sendCommand(deviceId, 'screen_snap');
+                if (result.path) api.showToast('Screenshot saved', 'success');
+            } catch (e) { api.showToast(e.message, 'error'); }
+        }
+
+        // ========== TOUCH & MOUSE INTERACTION ==========
+
+        let isDragging = false;
+        let mouseDownTime = 0;
+        let startX = 0, startY = 0;
+        const TAP_THRESHOLD = 15;    // Max pixels moved to count as tap (not drag/swipe)
+        const SWIPE_THRESHOLD = 40;  // Min pixels for a swipe gesture
+
+        function getDeviceCoords(clientX, clientY) {
+            if (!originalResolution) return null;
+            const rect = imgDisplay.getBoundingClientRect();
+            const scaleX = originalResolution.width / rect.width;
+            const scaleY = originalResolution.height / rect.height;
+            return {
+                x: Math.round(Math.max(0, Math.min(originalResolution.width, (clientX - rect.left) * scaleX))),
+                y: Math.round(Math.max(0, Math.min(originalResolution.height, (clientY - rect.top) * scaleY)))
+            };
+        }
+
+        function showTapRipple(clientX, clientY) {
+            const rect = imgDisplay.getBoundingClientRect();
+            const wrapperRect = screenWrapper.getBoundingClientRect();
+            const ripple = document.createElement('div');
+            ripple.style.cssText = `
+                position: absolute;
+                left: ${clientX - wrapperRect.left}px;
+                top: ${clientY - wrapperRect.top}px;
+                width: 30px; height: 30px;
+                margin-left: -15px; margin-top: -15px;
+                border-radius: 50%;
+                background: rgba(0, 255, 65, 0.3);
+                border: 2px solid rgba(0, 255, 65, 0.6);
+                pointer-events: none;
+                animation: tapRipple 0.5s ease-out forwards;
+                z-index: 100;
+            `;
+            screenWrapper.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 500);
+        }
+
+        function getSwipeDirection(dx, dy) {
+            if (Math.abs(dx) > Math.abs(dy)) {
+                return dx > 0 ? 'right' : 'left';
+            }
+            return dy > 0 ? 'down' : 'up';
+        }
+
+        // --- Mouse Events ---
+
+        imgDisplay.addEventListener('mousedown', e => {
+            if (!isStreaming || !originalResolution) return;
+            e.preventDefault();
+            const c = getDeviceCoords(e.clientX, e.clientY);
+            if (!c) return;
+
+            startX = c.x; startY = c.y;
+            mouseDownTime = Date.now();
+            isDragging = true;
+
+            if (controlMode === 'cursor') {
+                // Move cursor to click position immediately
+                cursorX = c.x;
+                cursorY = c.y;
+                updateCursorDisplay();
+            }
+        });
+
+        imgDisplay.addEventListener('mousemove', e => {
+            if (!isDragging || !isStreaming || !originalResolution) return;
+            e.preventDefault();
+            const c = getDeviceCoords(e.clientX, e.clientY);
+            if (!c) return;
+
+            if (controlMode === 'cursor') {
+                cursorX = c.x;
+                cursorY = c.y;
+                updateCursorDisplay();
+            }
+        });
+
+        imgDisplay.addEventListener('mouseup', e => {
+            if (!isStreaming || !isDragging || !originalResolution) return;
+            e.preventDefault();
+            isDragging = false;
+
+            const c = getDeviceCoords(e.clientX, e.clientY);
+            if (!c) return;
+
+            const dx = c.x - startX;
+            const dy = c.y - startY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (controlMode === 'cursor') {
+                // Cursor mode: move cursor + tap at final position
+                cursorX = c.x;
+                cursorY = c.y;
+                updateCursorDisplay();
+
+                if (dist < TAP_THRESHOLD) {
+                    // Short click = tap
+                    console.log(`[Click→Tap] Cursor mode at (${c.x}, ${c.y})`);
+                    cursorCrosshair.classList.add('tap-flash');
+                    setTimeout(() => cursorCrosshair.classList.remove('tap-flash'), 300);
+                    showTapRipple(e.clientX, e.clientY);
+                    sendAction('tap', { x: c.x, y: c.y });
+                }
+                // Long drag = just repositioned cursor, no action
+            } else {
+                // Gesture mode: tap or swipe
+                if (dist < TAP_THRESHOLD) {
+                    // Tap at click position
+                    console.log(`[Click→Tap] Gesture mode at (${c.x}, ${c.y})`);
+                    showTapRipple(e.clientX, e.clientY);
+                    sendAction('tap', { x: c.x, y: c.y });
+                } else if (dist >= SWIPE_THRESHOLD) {
+                    // Swipe gesture
+                    const direction = getSwipeDirection(dx, dy);
+                    console.log(`[Drag→Swipe] Gesture mode: ${direction} (${Math.round(dist)}px)`);
+                    sendAction('accessibility_swipe', {
+                        fromX: startX, fromY: startY,
+                        toX: c.x, toY: c.y,
+                        duration: 300
+                    });
+                }
+            }
+        });
+
+        imgDisplay.addEventListener('mouseleave', () => { isDragging = false; });
+
+        // --- Touch Events (mobile browsers) ---
+
+        let touchStartCoords = null;
+
+        imgDisplay.addEventListener('touchstart', e => {
+            if (!isStreaming || !originalResolution) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const c = getDeviceCoords(touch.clientX, touch.clientY);
+            if (!c) return;
+
+            touchStartCoords = { ...c, clientX: touch.clientX, clientY: touch.clientY };
+            mouseDownTime = Date.now();
+
+            if (controlMode === 'cursor') {
+                cursorX = c.x;
+                cursorY = c.y;
+                updateCursorDisplay();
+            }
+        }, { passive: false });
+
+        imgDisplay.addEventListener('touchmove', e => {
+            if (!isStreaming || !originalResolution || !touchStartCoords) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const c = getDeviceCoords(touch.clientX, touch.clientY);
+            if (!c) return;
+
+            if (controlMode === 'cursor') {
+                cursorX = c.x;
+                cursorY = c.y;
+                updateCursorDisplay();
+            }
+        }, { passive: false });
+
+        imgDisplay.addEventListener('touchend', e => {
+            if (!isStreaming || !originalResolution || !touchStartCoords) return;
+            e.preventDefault();
+
+            const touch = e.changedTouches[0];
+            const c = getDeviceCoords(touch.clientX, touch.clientY);
+            if (!c) return;
+
+            const dx = c.x - touchStartCoords.x;
+            const dy = c.y - touchStartCoords.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (controlMode === 'cursor') {
+                cursorX = c.x;
+                cursorY = c.y;
+                updateCursorDisplay();
+
+                if (dist < TAP_THRESHOLD) {
+                    cursorCrosshair.classList.add('tap-flash');
+                    setTimeout(() => cursorCrosshair.classList.remove('tap-flash'), 300);
+                    showTapRipple(touch.clientX, touch.clientY);
+                    sendAction('tap', { x: c.x, y: c.y });
+                }
+            } else {
+                if (dist < TAP_THRESHOLD) {
+                    showTapRipple(touch.clientX, touch.clientY);
+                    sendAction('tap', { x: c.x, y: c.y });
+                } else if (dist >= SWIPE_THRESHOLD) {
+                    const direction = getSwipeDirection(dx, dy);
+                    sendAction('accessibility_swipe', {
+                        fromX: touchStartCoords.x, fromY: touchStartCoords.y,
+                        toX: c.x, toY: c.y,
+                        duration: 300
+                    });
+                }
+            }
+
+            touchStartCoords = null;
+        }, { passive: false });
+
+        // Reposition cursor overlay when window resizes
+        window.addEventListener('resize', () => {
+            if (isStreaming && controlMode === 'cursor') {
+                showCursor();
+            }
+        });
+
+        // ========== INIT ==========
+
+        btnStart.addEventListener('click', startStream);
+        btnStop.addEventListener('click', stopStream);
+        btnScreenshot.addEventListener('click', takeScreenshot);
+
+        initWebSocket();
+
+    </script>
+
+  <!-- Disclaimer -->
+  <div class="container">
+    <div class="disclaimer">
+      <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+      <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely manage their own devices. Installing or using this application on a device without the owner's explicit consent is illegal and unethical. The developers assume no liability for misuse. By using this application, you agree that you are solely responsible for how it is used.</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p class="footer-created">Created by</p>
+    <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+    <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+  </footer>
+</body>
+
+</html>

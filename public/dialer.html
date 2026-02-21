@@ -1,0 +1,269 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Dialer - Remote Access</title>
+    <link rel="stylesheet" href="/css/hacker-theme.css">
+    <style>
+        .container {
+            max-width: 500px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--accent);
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+
+        .number-display {
+            text-align: center;
+            font-size: 1.8rem;
+            padding: 20px;
+            margin: 16px 0;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            min-height: 60px;
+            background: var(--bg-panel);
+            color: var(--accent);
+            letter-spacing: 4px;
+            text-shadow: 0 0 10px var(--accent-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .number-display.typing {
+            border-color: var(--accent-dim);
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        .status-bar.ringing {
+            border-color: var(--warning);
+            color: var(--warning);
+            box-shadow: 0 0 10px rgba(255, 170, 0, 0.15);
+            animation: pulse-glow-warning 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow-warning {
+
+            0%,
+            100% {
+                box-shadow: 0 0 4px rgba(255, 170, 0, 0.15);
+            }
+
+            50% {
+                box-shadow: 0 0 16px rgba(255, 170, 0, 0.3);
+            }
+        }
+
+        .status-bar.offhook {
+            border-color: var(--accent-dim);
+            color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .dialpad-btn {
+            transition: all 0.1s ease;
+        }
+
+        .dialpad-btn:active {
+            transform: scale(0.92);
+            box-shadow: 0 0 15px var(--accent-glow);
+            background: rgba(0, 255, 65, 0.15);
+        }
+
+        .btn {
+            flex: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <a href="/" class="back-link">&lt;-- Back to Dashboard</a>
+
+        <h1>Call Dialer</h1>
+
+        <div class="status-bar" id="call-status">
+            IDLE - No Active Call
+        </div>
+
+        <div class="number-display" id="number-display">
+            Enter Number
+        </div>
+
+        <div class="dialpad">
+            <button class="dialpad-btn" onclick="addDigit('1')">1</button>
+            <button class="dialpad-btn" onclick="addDigit('2')">2</button>
+            <button class="dialpad-btn" onclick="addDigit('3')">3</button>
+            <button class="dialpad-btn" onclick="addDigit('4')">4</button>
+            <button class="dialpad-btn" onclick="addDigit('5')">5</button>
+            <button class="dialpad-btn" onclick="addDigit('6')">6</button>
+            <button class="dialpad-btn" onclick="addDigit('7')">7</button>
+            <button class="dialpad-btn" onclick="addDigit('8')">8</button>
+            <button class="dialpad-btn" onclick="addDigit('9')">9</button>
+            <button class="dialpad-btn special" onclick="addDigit('*')">*</button>
+            <button class="dialpad-btn" onclick="addDigit('0')">0</button>
+            <button class="dialpad-btn special" onclick="addDigit('#')">#</button>
+        </div>
+
+        <div class="action-buttons" style="margin-bottom: 12px;">
+            <button class="dialpad-btn special" onclick="addDigit('+')">+</button>
+            <button class="dialpad-btn special" onclick="backspace()">&#x232B;</button>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-call" onclick="dialCall()">CALL</button>
+            <button class="btn btn-endcall" onclick="endCall()">END CALL</button>
+            <button class="btn btn-clear" onclick="clearNumber()">CLEAR</button>
+        </div>
+
+        <div class="warning">
+            &#x26A0;&#xFE0F; <strong>Call Recording:</strong> Feature removed by request.
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const deviceId = new URLSearchParams(window.location.search).get('deviceId');
+        let currentNumber = '';
+        let callState = 'IDLE';
+        let isRecording = false;
+
+        // DTMF-like beep
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq = 700, duration = 60) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = freq;
+            gain.gain.value = 0.05;
+            osc.start();
+            setTimeout(() => { gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05); osc.stop(audioCtx.currentTime + 0.06); }, duration);
+        }
+
+        const dtmfFreqs = {
+            '1': 697, '2': 770, '3': 852,
+            '4': 697, '5': 770, '6': 852,
+            '7': 941, '8': 941, '9': 941,
+            '*': 941, '0': 941, '#': 941,
+            '+': 600
+        };
+
+        function addDigit(digit) {
+            currentNumber += digit;
+            updateDisplay();
+            playTone(dtmfFreqs[digit] || 700, 60);
+        }
+
+        function backspace() {
+            currentNumber = currentNumber.slice(0, -1);
+            updateDisplay();
+        }
+
+        function clearNumber() {
+            currentNumber = '';
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            const display = document.getElementById('number-display');
+            display.textContent = currentNumber || 'Enter Number';
+            display.classList.toggle('typing', currentNumber.length > 0);
+        }
+
+        async function dialCall() {
+            if (!currentNumber) {
+                api.showToast('Please enter a phone number', 'error');
+                return;
+            }
+
+            try {
+                const response = await api.sendCommand(deviceId, 'call_dial', {
+                    number: currentNumber
+                });
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    api.showToast(`Dialing ${currentNumber}...`, 'success');
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to dial');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+
+        async function endCall() {
+            try {
+                const response = await api.sendCommand(deviceId, 'call_end');
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    api.showToast('Call ended', 'success');
+                } else {
+                    throw new Error(response.error || response.data?.error || 'Failed to end call');
+                }
+            } catch (error) {
+                api.showToast(error.message, 'error');
+            }
+        }
+        async function updateCallState() {
+            try {
+                const response = await api.sendCommand(deviceId, 'call_state');
+
+                if (response.success && response.data && response.data.status === 'success') {
+                    callState = response.data.state;
+                    isRecording = response.data.isRecording || false;
+
+                    const statusBar = document.getElementById('call-status');
+
+                    switch (callState) {
+                        case 'IDLE':
+                            statusBar.textContent = 'IDLE - No Active Call';
+                            statusBar.className = 'status-bar';
+                            break;
+                        case 'RINGING':
+                            statusBar.textContent = '📞 RINGING - Incoming Call';
+                            statusBar.className = 'status-bar ringing';
+                            break;
+                        case 'OFFHOOK':
+                            statusBar.textContent = '🟢 OFFHOOK - Call Connected';
+                            statusBar.className = 'status-bar offhook';
+                            break;
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating call state:', error);
+            }
+        }
+
+        // Poll call state every 2 seconds
+        setInterval(updateCallState, 2000);
+
+        // Initial load
+        updateCallState();
+    </script>
+
+  <!-- Disclaimer -->
+  <div class="container">
+    <div class="disclaimer">
+      <h4>&#x26A0;&#xFE0F; Disclaimer</h4>
+      <p>This application is intended for EDUCATIONAL AND PERSONAL USE ONLY. It is designed for users to remotely manage their own devices. Installing or using this application on a device without the owner's explicit consent is illegal and unethical. The developers assume no liability for misuse. By using this application, you agree that you are solely responsible for how it is used.</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <p class="footer-created">Created by</p>
+    <a href="https://thiyoplus-f.netlify.app/" target="_blank" class="footer-brand">thiyo-de</a>
+    <p class="footer-copy">&copy; 2025 All Rights Reserved</p>
+  </footer>
+</body>
+
+</html>
